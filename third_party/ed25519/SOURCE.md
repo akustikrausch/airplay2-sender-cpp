@@ -1,8 +1,8 @@
-# ed25519 (orlp/ed25519) — vendored
+# ed25519 (orlp/ed25519), vendored
 
 **Upstream:** https://github.com/orlp/ed25519
 **Pinned commit:** `b1f19fab4aebe607805620d25a5e42566ce46a0e` (cloned 2026-06-13)
-**License:** zlib license (permissive — see `LICENSE.txt`). © 2015 Orson Peters.
+**License:** zlib license (permissive, see `LICENSE.txt`). © 2015 Orson Peters.
 **No GPL.** Safe to statically link into a closed-source shipping binary.
 
 ## Why this is vendored
@@ -26,7 +26,7 @@ to pull in a second heavyweight TLS stack just for Ed25519.
 into the canonical 64-byte private key, then `ed25519_sign(...)` /
 `ed25519_verify(...)` are the standard RFC 8032 Ed25519. This is byte-compatible
 with the `cryptography`/OpenSSL `Ed25519PrivateKey.from_private_bytes(seed32)`
-that pyatv uses — the seed is the long-term secret we persist (`ltsk`), the
+that pyatv uses: the seed is the long-term secret we persist (`ltsk`), the
 32-byte `pub32` is the long-term public key (`ltpk`).
 
 ## Local modifications
