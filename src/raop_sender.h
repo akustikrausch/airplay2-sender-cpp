@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 #pragma once
 //
 // raop_sender.h -- the airplay sender state machine. this IS the recipe.

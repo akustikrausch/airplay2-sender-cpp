@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //
 // v0.66.x — AirPlay 2 / HomeKit crypto + wire-format primitives.
 // See airplay_crypto.h for the design, the crypto-backend rationale, and

@@ -1,0 +1,14 @@
+airplay 2 sender (c++)
+Copyright 2026 Andreas Wendorf (Akustikrausch)
+
+This product includes software developed by Andreas Wendorf (Akustikrausch).
+Licensed under the Apache License, Version 2.0.
+
+The AirPlay 2 protocol was reconstructed clean-room from public reverse-
+engineering work (owntone, pyatv, shairport-sync, emanuelecozzi's AP2 notes,
+the unofficial AirPlay spec) read as documentation only — no third-party code
+is included.
+
+Vendored / build-time dependencies keep their own licenses:
+  third_party/ed25519/   orlp/ed25519 — zlib license, (c) 2015 Orson Peters
+  Mbed TLS (fetched)     Apache License 2.0

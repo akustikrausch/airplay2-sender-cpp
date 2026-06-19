@@ -3,7 +3,7 @@
 **by Akustikrausch (Andreas Wendorf)**
 
 <p>
-  <img src="https://img.shields.io/badge/license-MIT-3da639" alt="license MIT">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-3da639" alt="license Apache-2.0">
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599c" alt="C++20">
   <img src="https://img.shields.io/badge/protocol-AirPlay%202%20realtime-ff5e00" alt="AirPlay 2 realtime">
   <img src="https://img.shields.io/badge/codec-ALAC%20lossless-8a2be2" alt="ALAC lossless">
@@ -150,7 +150,12 @@ if you want the polished player it lives in, here:
 
 ## license
 
-**MIT** for everything in `src/`. © 2026 akustikrausch / andreas wendorf.
+**Apache-2.0** for everything in `src/`. © 2026 Andreas Wendorf (Akustikrausch).
+
+apache-2.0 on purpose: this is *reverse-engineered apple-protocol* code, so the
+license carries an **explicit patent grant** — embed it in a product without the
+"is this safe to ship" patent worry that keeps MIT-licensed protocol code out of
+corporate codebases. fully permissive, no copyleft; keep the `NOTICE`.
 
 clean-room: the apple protocol was reconstructed from public reverse-engineering
 work (owntone, pyatv, shairport-sync, emanuelecozzi's AP2 notes, the unofficial

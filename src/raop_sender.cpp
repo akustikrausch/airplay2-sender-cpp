@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 //
 // v0.66.x — RaopSender implementation (AirPlay-1 / RAOP audio sender).
 //
