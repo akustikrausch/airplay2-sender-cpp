@@ -6,10 +6,10 @@ what's done, and what stands between "lifted out of a working player" and
 ## done
 - the whole AP2 realtime recipe, verified against a real Apple TV 4K + HomePod
   + a macOS receiver (see README).
-- `airplay_crypto` — the Qt-free crypto + wire-format core. builds on its own.
+- `airplay_crypto`, the Qt-free crypto + wire-format core. builds on its own.
 - the transient/macOS 32-byte audio-key clamp (the last-mile fix).
 
-## next — make the sender Qt-free
+## next: make the sender Qt-free
 `raop_sender` does its networking with Qt today (`QTcpSocket` / `QUdpSocket` /
 `QTimer`). the plan is a ~3-method transport interface:
 
@@ -26,15 +26,15 @@ struct ITransport {
 with that, the sender is plain C++ + `airplay_crypto`; the Qt build becomes one
 small adapter. a poll/`select` adapter ships as the default.
 
-## next — drop the host glue
+## next: drop the host glue
 - `mdns_discovery.h` is only needed for the `RaopDeviceInfo::Auth` enum + the
   bonjour discovery of receivers. fold the enum in; ship a tiny mDNS browser
   (or let the caller pass a resolved host + the `sf` flags).
 - `common/logger.h` → a one-line `std::function<void(level, msg)>` sink.
 - `common/ring_buffer.h` is already self-contained (it's in `src/`).
 
-## next — the demo
-`airplay-send <host> <file.wav>` — pair, set up, stream a wav, ctrl-c to stop.
+## next: the demo
+`airplay-send <host> <file.wav>`: pair, set up, stream a wav, ctrl-c to stop.
 the thing you actually `git clone && cmake && run` to prove it on your couch.
 
 ## maybe later
