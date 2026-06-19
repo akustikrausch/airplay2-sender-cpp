@@ -21,6 +21,11 @@ this is the part of the apple-tax that nobody published. you can find a hundred
 **sends** AirPlay 2 realtime audio to a current apple device and keeps the
 session alive. so here it is, with the entire recipe written down.
 
+> 🎧 **this code ships in a real product — [FXChainPlayer](https://github.com/akustikrausch/FXChainPlayer-Releases).**
+> a native windows audio player that casts straight to your apple tv / homepod /
+> macbook over AirPlay 2. that's where this sender runs every day, against real
+> hardware. go grab the player to hear it, or read on for the protocol.
+
 ## why this exists
 
 the open AirPlay landscape is all receiver, wrong language, or stuck in 2014:
