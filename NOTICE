@@ -12,3 +12,10 @@ is included.
 Vendored / build-time dependencies keep their own licenses:
   third_party/ed25519/   orlp/ed25519 — zlib license, (c) 2015 Orson Peters
   Mbed TLS (fetched)     Apache License 2.0
+
+Trademarks / disclaimer:
+  This project is NOT affiliated with, authorized, endorsed by, or in any way
+  officially connected to Apple Inc. AirPlay, Apple TV, HomePod, HomeKit and
+  macOS are trademarks of Apple Inc., used here only nominatively to describe
+  protocol compatibility. The implementation exists for interoperability with
+  the user's own, lawfully operated devices.

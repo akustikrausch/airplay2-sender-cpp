@@ -162,6 +162,15 @@ work (owntone, pyatv, shairport-sync, emanuelecozzi's AP2 notes, the unofficial
 airplay spec) read **as documentation only** — not a line of their code is here.
 vendored deps keep their own licenses: **Mbed TLS** Apache-2.0, **ed25519** zlib.
 
+## disclaimer
+
+not affiliated with, authorized by, or endorsed by **Apple Inc.** *AirPlay*,
+*Apple TV*, *HomePod*, *HomeKit* and *macOS* are trademarks of Apple Inc., used
+here only to describe what this code talks to. nothing here ships an apple key,
+certificate, or any extracted firmware — it's a clean-room client of a network
+protocol, for interoperability with **your own** devices. use it on hardware you
+own and are allowed to use.
+
 ---
 
 *greetz to everyone who ever watched a socket close after one millisecond and
