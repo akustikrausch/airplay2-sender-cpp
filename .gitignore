@@ -1,11 +1,20 @@
 # build
 /build/
 /_deps/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
 *.o
 *.obj
 *.a
 *.lib
+*.so
+*.dylib
 *.exe
+*.pdb
+*.ilk
+*.exp
 *.wav
 # ide
 .vs/
@@ -15,3 +24,9 @@
 # os
 .DS_Store
 Thumbs.db
+# never commit pairing material / keys captured while testing
+*.pem
+*.key
+*.p12
+pairing*.bin
+*.credentials

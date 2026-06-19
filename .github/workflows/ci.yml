@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-crypto-core:
+    name: build the Qt-free crypto core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build python3
+
+      - name: configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      # builds ed25519 (vendored) + mbedcrypto (FetchContent) + airplay_crypto.
+      - name: build airplay_crypto
+        run: cmake --build build --target airplay_crypto --parallel

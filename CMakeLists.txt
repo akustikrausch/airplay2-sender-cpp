@@ -21,8 +21,13 @@ FetchContent_Declare(mbedtls
 FetchContent_MakeAvailable(mbedtls)
 
 # --- orlp/ed25519 (zlib, vendored): the one primitive Mbed TLS lacks ---
+# Drop seed.c and define ED25519_NO_SEED: ed25519_create_seed() is never called
+# (all seeds come from Mbed TLS CTR-DRBG), so we don't pull in seed.c's
+# CryptGenRandom/getrandom entropy path. Matches third_party/ed25519/SOURCE.md.
 file(GLOB ED25519_SRC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ed25519/src/*.c)
+list(FILTER ED25519_SRC EXCLUDE REGEX "/seed\\.c$")
 add_library(ed25519 STATIC ${ED25519_SRC})
+target_compile_definitions(ed25519 PRIVATE ED25519_NO_SEED)
 target_include_directories(ed25519 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ed25519/src)
 

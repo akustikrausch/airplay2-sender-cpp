@@ -7,8 +7,8 @@
 
 ## Why this is vendored
 
-FXChainPlayer's AirPlay 2 / HomeKit pairing (v0.66.x, see
-`src/cast/airplay_crypto.{h,cpp}`) needs **Ed25519 sign + verify** for the
+This project's AirPlay 2 / HomeKit pairing (see
+`src/airplay_crypto.{h,cpp}`) needs **Ed25519 sign + verify** for the
 HAP pair-verify exchange (the controller signs `X25519pub || pairingId ||
 sessionPub` with its long-term Ed25519 key, and verifies the accessory's
 signature with the stored long-term public key).

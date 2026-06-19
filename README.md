@@ -1,8 +1,9 @@
-# airplay 2 sender (c++)
+# AirPlay 2 Sender (C++)
 
 **by Akustikrausch (Andreas Wendorf)**
 
 <p>
+  <a href="https://github.com/akustikrausch/airplay2-sender-cpp/actions/workflows/ci.yml"><img src="https://github.com/akustikrausch/airplay2-sender-cpp/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <img src="https://img.shields.io/badge/license-Apache--2.0-3da639" alt="license Apache-2.0">
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599c" alt="C++20">
   <img src="https://img.shields.io/badge/protocol-AirPlay%202%20realtime-ff5e00" alt="AirPlay 2 realtime">
@@ -144,14 +145,30 @@ casts to a real Apple TV 4K (`AppleTV14,1`) and a MacBook every day. it is
 **not yet a turn-key standalone library**: `raop_sender` currently does its
 networking with **Qt** (`QTcpSocket` / `QUdpSocket` / `QTimer`) and pulls a
 couple of host headers. the **roadmap** (`ROADMAP.md`) is to put the sockets
-behind a ~3-method interface so the whole thing builds Qt-free, plus a
-`airplay-send <host> <file.wav>` CLI demo. the **crypto core already builds on
+behind a small (~5-method) transport interface so the whole thing builds
+Qt-free, plus a `airplay-send <host> <file.wav>` CLI demo. the **crypto core already builds on
 its own**, so that's the part you can use today; the sender is the reference you
 follow.
 
 if you want the polished player it lives in, here:
 
 → **https://github.com/akustikrausch/FXChainPlayer-Releases**
+
+## security (scope, read me)
+
+this is interoperability research, not an audited production security stack. one
+thing worth owning up front: the **sender does not yet cryptographically
+authenticate the receiver's identity**. the pair-verify signature and SRP proof
+checks currently *log-and-continue* rather than fail-closed, so a same-LAN
+man-in-the-middle could in principle accept your session and you'd stream to it
+(you'd leak the audio + the transient session key, not take attacker data into a
+trust boundary, it's a *sender*). the untrusted-input parsers (bplist / TLV8 /
+RTSP / the encrypted event frames) ARE bounds-checked against OOB + alloc-DoS,
+and the AEAD usage is authenticate-before-use with per-channel keys + counters.
+
+bottom line: **use it on a network you trust.** fail-closed receiver auth is a
+known, scoped TODO (see `ROADMAP.md` / `SECURITY.md`), a good first PR. report
+anything via `SECURITY.md`.
 
 ## license
 
@@ -162,10 +179,18 @@ license carries an **explicit patent grant**, so you can embed it in a product
 without the "is this safe to ship" patent worry that keeps MIT-licensed protocol
 code out of corporate codebases. fully permissive, no copyleft; keep the `NOTICE`.
 
-clean-room: the apple protocol was reconstructed from public reverse-engineering
-work (owntone, pyatv, shairport-sync, emanuelecozzi's AP2 notes, the unofficial
-airplay spec) read **as documentation only**. not a line of their code is here.
-vendored deps keep their own licenses: **Mbed TLS** Apache-2.0, **ed25519** zlib.
+provenance, split honestly:
+- the **crypto + wire-format core** (`airplay_crypto.*`) is **clean-room**,
+  reconstructed by reading owntone / pyatv / shairport-sync / pair_ap /
+  emanuelecozzi's AP2 notes / the unofficial spec **as documentation only**. no
+  upstream code is copied into it; only the on-the-wire byte formats.
+- the **RAOP / AirPlay transport** in `raop_sender.cpp` is in part a **C++ port
+  of pyatv** (MIT, © 2020 Pierre Ståhl), its RTSP/RTP/sync/timing model + the
+  HAP pairing sequence follow pyatv's modules. no python is bundled; pyatv's MIT
+  notice rides along in [`licenses/THIRD-PARTY-NOTICES.txt`](licenses/THIRD-PARTY-NOTICES.txt).
+
+vendored / build deps keep their own licenses: **Mbed TLS** Apache-2.0,
+**ed25519** zlib, same file has the details.
 
 ## disclaimer
 

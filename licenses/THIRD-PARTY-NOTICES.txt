@@ -1,0 +1,116 @@
+================================================================================
+airplay2-sender-cpp: THIRD-PARTY NOTICES
+================================================================================
+
+This project is licensed Apache-2.0 (see ../LICENSE, ../NOTICE). It incorporates
+or builds against the components below, each under its own license. Two of them
+(pyatv, pair_ap) are credited for PORTED / SPEC-REFERENCED PROTOCOL LOGIC, no
+upstream source is bundled, but the relevant copyright + permission notices are
+reproduced here as those licenses require.
+
+
+--- PROTOCOL PORTS (logic translated to C++; no upstream code shipped) ---
+
+pyatv
+  Copyright (c) 2020 Pierre Ståhl and contributors
+  License: MIT                     ·   https://github.com/postlund/pyatv
+  The AirPlay-1 (RAOP) audio sender in src/raop_sender.cpp is a C++ port of
+  pyatv's RAOP implementation (RTSP sequence, SDP / RTP / sync / timing packet
+  formats, the NTP<->timestamp conversions, the fixed-latency timeline model;
+  pyatv/protocols/raop/{stream_client,packets,timing}.py + support/rtsp.py).
+  The AirPlay-2 pairing + encryption sequencing in src/raop_sender.cpp (HAP
+  pair-setup / pair-verify driver, the SETUP / RECORD / stream-SETUP ordering)
+  likewise follows pyatv's auth/raop modules. No Python code is bundled; this
+  MIT notice applies to the ported logic. pyatv's timing routines in turn credit
+  philippe44's RAOP-Player for the NTP math, the formulas (not the GPL code)
+  are used here, reimplemented independently.
+
+pair_ap (ejurgensen/pair_ap)
+  Copyright (c) Espen Jürgensen and contributors
+  License: MIT                     ·   https://github.com/ejurgensen/pair_ap
+  Spec reference only: the SRP-6a H_nn_pad padding convention in
+  src/airplay_crypto.cpp's SrpClient was cross-checked against pair_ap's
+  pair_homekit.c (OwnTone's production HomeKit pairing). No pair_ap code is
+  bundled; this MIT notice applies to the cross-checked convention.
+
+Note on the crypto + wire-format CORE (src/airplay_crypto.*): the HomeKit/AP2
+pairing primitives (SRP-6a, HKDF, ChaCha20-Poly1305, TLV8, bplist) were
+reconstructed CLEAN-ROOM by reading pyatv / owntone / shairport-sync / pair_ap /
+emanuelecozzi's AP2 notes / the unofficial AirPlay spec AS DOCUMENTATION ONLY.
+No third-party code is copied into airplay_crypto.*; only the on-the-wire byte
+formats those projects describe are reproduced.
+
+
+--- BUILD-TIME / VENDORED DEPENDENCIES ---
+
+Mbed TLS 3.6
+  Copyright (c) The Mbed TLS Contributors
+  License: Apache-2.0 OR GPL-2.0-or-later (used here under Apache-2.0)
+  https://github.com/Mbed-TLS/mbedtls
+  Fetched via CMake FetchContent. Provides the SRP-6a-3072 bignum mod-exp,
+  SHA-512 / HMAC-SHA512, HKDF-SHA512, ChaCha20-Poly1305 AEAD, X25519 ECDH and
+  CTR-DRBG used by src/airplay_crypto.cpp. The full Apache-2.0 text is this
+  project's own ../LICENSE.
+
+ed25519 (orlp/ed25519)
+  Copyright (c) 2015 Orson Peters
+  License: zlib                     ·   https://github.com/orlp/ed25519
+  Vendored under third_party/ed25519 (pinned commit b1f19fab; see its
+  SOURCE.md). Ed25519 sign/verify + raw RFC-7748 X25519 for the AirPlay 2 HAP
+  pair-verify exchange, the one primitive Mbed TLS 3.6 doesn't provide.
+  Full zlib text reproduced below and in third_party/ed25519/LICENSE.txt.
+
+
+================================================================================
+LICENSE TEXTS
+================================================================================
+
+--------------------------------------------------------------------------------
+MIT License
+--------------------------------------------------------------------------------
+Applies to: pyatv (Copyright (c) 2020 Pierre Ståhl and contributors),
+pair_ap (Copyright (c) Espen Jürgensen and contributors).
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+zlib License
+--------------------------------------------------------------------------------
+Applies to: ed25519 / orlp (Copyright (c) 2015 Orson Peters).
+
+This software is provided 'as-is', without any express or implied warranty. In
+no event will the authors be held liable for any damages arising from the use of
+this software.
+
+Permission is granted to anyone to use this software for any purpose, including
+commercial applications, and to alter it and redistribute it freely, subject to
+the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim
+   that you wrote the original software. If you use this software in a product,
+   an acknowledgment in the product documentation would be appreciated but is
+   not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+
+--------------------------------------------------------------------------------
+Apache License 2.0
+--------------------------------------------------------------------------------
+Applies to: Mbed TLS (The Mbed TLS Contributors), AND this project itself.
+The full Apache-2.0 text is ../LICENSE in this repository.

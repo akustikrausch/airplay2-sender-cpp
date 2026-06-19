@@ -695,6 +695,7 @@ struct Decoder {
         }
         case 0x60: { // UTF-16 string, store the raw bytes' ASCII subset
             const uint64_t cnt = readCount();   // unit count
+            if (cnt > d.size()) return std::nullopt;   // DoS-bound, match siblings
             std::string s;
             for (uint64_t i = 0; i < cnt; ++i) {
                 const uint64_t at = pos + i * 2;

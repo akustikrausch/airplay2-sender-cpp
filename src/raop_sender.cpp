@@ -35,8 +35,8 @@
 
 #include "raop_sender.h"
 #include "airplay_crypto.h"
-#include "../common/logger.h"
-#include "../common/ring_buffer.h"
+#include "../common/logger.h"   // host glue (ROADMAP m2); not in this repo yet
+#include "ring_buffer.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -187,7 +187,7 @@ RaopSender::RaopSender(QObject* parent) : QObject(parent) {
     // connection only needs to exist for RECORD to be accepted.
     connect(&eventSock_, &QTcpSocket::readyRead, this,
             &RaopSender::onEventReadyRead_);
-    // Audit H2, surface an event-channel drop instead of silently ignoring it
+    // Surface an event-channel drop instead of silently ignoring it
     // (a receiver that drops the event channel usually tears down the session).
     connect(&eventSock_, &QTcpSocket::errorOccurred, this,
             [this](QAbstractSocket::SocketError) {
@@ -1034,8 +1034,8 @@ void RaopSender::httpPost_(const QByteArray& uri, const QByteArray& contentType,
                                   ? 4 : 3) + "\r\n";
     req += "DACP-ID: " + dacpId_ + "\r\n";
     req += "Active-Remote: " + QByteArray::number(activeRemote_) + "\r\n";
-    // AirPlay-bug fix (13-agent research): owntone stamps Client-Instance +
-    // X-Apple-Client-Name on EVERY pairing request (request_headers_add). Our
+    // owntone stamps Client-Instance + X-Apple-Client-Name on EVERY pairing
+    // request (request_headers_add). Our
     // pairing builder omitted both, a macOS/Apple-TV receiver's access-control
     // gate inspects the sender identity headers before the TLV, and their
     // absence is a documented 403 cause. Mirror owntone (Client-Instance ==
@@ -1077,8 +1077,7 @@ void RaopSender::beginAuthChain_() {
         // route to the tested HapPin/HapTransient paths). Rather than run a
         // doomed unencrypted handshake the device will reject, fail with a
         // clear, actionable message. (The full legacy SRP-2048 flow needs a
-        // real legacy device to verify, tracked in UNFINISHED_FEATURES
-        // FXC-FEAT-0613-001.)
+        // real legacy device to verify; not implemented yet.)
         fail_(tr("%1 uses an older AirPlay pairing that isn't supported yet. "
                  "Update the device's software, or use an AirPlay-2 receiver "
                  "(HomePod, Apple TV 4K, or a modern AirPlay speaker).")
@@ -1121,7 +1120,7 @@ void RaopSender::onPairingResponse_(int code,
     Q_UNUSED(headers);
     if (state_ == State::Idle) return;
 
-    // Audit M4, once we're streaming the handshake is done; a late/duplicate
+    // Once we're streaming the handshake is done; a late/duplicate
     // pairing-stage reply (e.g. a misbehaving receiver) must NOT be re-parsed
     // as a SETUP plist and tear down the live stream. Ignore it.
     if (state_ == State::Streaming) {
@@ -1520,6 +1519,10 @@ void RaopSender::handlePairVerifyM2_(const QByteArray& body) {
 
     // Shared secret + verify session key.
     ap2_->sharedSecret = x25519SharedSecret(ap2_->verifyKeys.priv, *sessionPub);
+    if (ap2_->sharedSecret.empty()) {   // malformed/low-order sessionPub
+        fail_(tr("Pair-verify shared-secret derivation failed"));
+        return;
+    }
     const Bytes verifyKey = hkdfSha512("Pair-Verify-Encrypt-Salt",
                                        "Pair-Verify-Encrypt-Info",
                                        ap2_->sharedSecret, 32);

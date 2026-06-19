@@ -4,14 +4,22 @@ Copyright 2026 Andreas Wendorf (Akustikrausch)
 This product includes software developed by Andreas Wendorf (Akustikrausch).
 Licensed under the Apache License, Version 2.0.
 
-The AirPlay 2 protocol was reconstructed clean-room from public reverse-
-engineering work (owntone, pyatv, shairport-sync, emanuelecozzi's AP2 notes,
-the unofficial AirPlay spec) read as documentation only; no third-party code
-is included.
+The crypto + wire-format CORE (src/airplay_crypto.*) was reconstructed
+clean-room from public reverse-engineering work (owntone, pyatv, shairport-sync,
+pair_ap, emanuelecozzi's AP2 notes, the unofficial AirPlay spec) read as
+documentation only; no upstream code is copied into it.
 
-Vendored / build-time dependencies keep their own licenses:
-  third_party/ed25519/   orlp/ed25519, zlib license, (c) 2015 Orson Peters
-  Mbed TLS (fetched)     Apache License 2.0
+The RAOP / AirPlay sender logic in src/raop_sender.cpp is in part a C++ PORT of
+pyatv (MIT, (c) 2020 Pierre Ståhl), its RTSP/RTP/sync/timing model and the
+HAP pairing sequence follow pyatv's raop/auth modules. No Python code is
+bundled; pyatv's MIT notice is reproduced in licenses/THIRD-PARTY-NOTICES.txt.
+
+Ported / spec-referenced protocol logic and vendored / build-time dependencies
+keep their own licenses (full texts in licenses/THIRD-PARTY-NOTICES.txt):
+  pyatv (RAOP/AP2 logic port)   MIT, (c) 2020 Pierre Ståhl
+  pair_ap (SRP padding spec)    MIT, (c) Espen Jürgensen
+  third_party/ed25519/          zlib, (c) 2015 Orson Peters
+  Mbed TLS (fetched)            Apache-2.0 OR GPL-2.0-or-later (used: Apache-2.0)
 
 Trademarks / disclaimer:
   This project is NOT affiliated with, authorized, endorsed by, or in any way
