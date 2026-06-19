@@ -1,0 +1,17 @@
+# build
+/build/
+/_deps/
+*.o
+*.obj
+*.a
+*.lib
+*.exe
+*.wav
+# ide
+.vs/
+.vscode/
+.idea/
+*.user
+# os
+.DS_Store
+Thumbs.db
