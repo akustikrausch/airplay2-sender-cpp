@@ -2,12 +2,12 @@
 //
 // WHY THIS EXISTS: orlp's own ed25519_key_exchange() expects an *Edwards*
 // public key and converts Edwards->Montgomery internally. HomeKit (HAP)
-// pair-verify uses *pure X25519* — the peer's public key is already a raw
+// pair-verify uses *pure X25519*: the peer's public key is already a raw
 // Curve25519 u-coordinate (little-endian, 32 bytes), so applying orlp's
 // extra Edwards->Montgomery step would corrupt it. This function is the
 // standard RFC 7748 X25519 scalar multiplication: it reads the raw u
 // directly with fe_frombytes and runs the SAME constant-time Montgomery
-// ladder orlp uses — just without the Edwards unpacking. The ladder body
+// ladder orlp uses, just without the Edwards unpacking. The ladder body
 // is the public-domain ref implementation (identical to orlp's, which is
 // itself the ref10/donna lineage); reusing the audited fe.c keeps the
 // field math in one vetted place.
