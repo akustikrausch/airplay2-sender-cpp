@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// v0.66.x — AirPlay 2 / HomeKit crypto + wire-format primitives.
+// v0.66.x, AirPlay 2 / HomeKit crypto + wire-format primitives.
 // See airplay_crypto.h for the design, the crypto-backend rationale, and
 // the pyatv / pair_ap protocol attribution.
 //
@@ -54,7 +54,7 @@ struct Drbg {
 };
 
 Drbg& drbg() {
-    static Drbg g;   // Meyers singleton — thread-safe init since C++11.
+    static Drbg g;   // Meyers singleton, thread-safe init since C++11.
     return g;
 }
 
@@ -170,7 +170,7 @@ Bytes pad12(const Bytes& nonce8) {
 
 Bytes chacha20Poly1305Encrypt(const Bytes& key, const Bytes& nonce8,
                               const Bytes& plaintext, const Bytes& aad) {
-    // setkey reads a fixed 32-byte key — guard against a short key (the
+    // setkey reads a fixed 32-byte key, guard against a short key (the
     // keys are HKDF-32 today, but this keeps it OOB-proof if ever misused).
     if (key.size() != 32) throw std::runtime_error("chacha key size");
     mbedtls_chachapoly_context ctx;
@@ -572,7 +572,7 @@ Bytes encode(const Value& root) {
         out.insert(out.end(), o.begin(), o.end());
     }
 
-    // Offset table (use 4-byte offsets — generous for our small payloads).
+    // Offset table (use 4-byte offsets, generous for our small payloads).
     const uint64_t offsetTableStart = out.size();
     const uint8_t offsetSize = 4;
     for (uint64_t off : offsets)
@@ -693,7 +693,7 @@ struct Decoder {
             if (cnt > d.size() || pos + cnt > d.size()) return std::nullopt;
             return Value::str(std::string(d.begin() + pos, d.begin() + pos + cnt));
         }
-        case 0x60: { // UTF-16 string — store the raw bytes' ASCII subset
+        case 0x60: { // UTF-16 string, store the raw bytes' ASCII subset
             const uint64_t cnt = readCount();   // unit count
             std::string s;
             for (uint64_t i = 0; i < cnt; ++i) {
@@ -706,7 +706,7 @@ struct Decoder {
         case 0xA0: { // array
             const uint64_t cnt = readCount();
             // An array can't reference more objects than exist, and its ref
-            // table must fit — bounds a crafted huge `cnt` (DoS hang).
+            // table must fit, bounds a crafted huge `cnt` (DoS hang).
             if (!ok || cnt > numObjects || pos + cnt * refSize > d.size())
                 return std::nullopt;
             Array arr;

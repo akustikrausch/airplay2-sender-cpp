@@ -1,8 +1,8 @@
-# Vendored orlp/ed25519 (zlib license) — Ed25519 sign/verify for AirPlay HAP
+# Vendored orlp/ed25519 (zlib license), Ed25519 sign/verify for AirPlay HAP
 # pair-verify. See SOURCE.md for provenance + why Mbed TLS doesn't cover this.
 #
 # Qt-free, dependency-free standalone C. We DON'T compile seed.c (the platform
-# entropy source) — ED25519_NO_SEED drops ed25519_create_seed; all randomness
+# entropy source), ED25519_NO_SEED drops ed25519_create_seed; all randomness
 # in the AirPlay path comes from Mbed TLS CTR-DRBG instead.
 
 add_library(ed25519 STATIC
@@ -20,7 +20,7 @@ add_library(ed25519 STATIC
 target_include_directories(ed25519 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(ed25519 PUBLIC ED25519_NO_SEED)
 
-# This is a C target — never inherit the project PCH (which is C++).
+# This is a C target, never inherit the project PCH (which is C++).
 set_target_properties(ed25519 PROPERTIES
     C_STANDARD 99
     POSITION_INDEPENDENT_CODE ON)

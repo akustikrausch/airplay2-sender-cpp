@@ -77,14 +77,14 @@ Bytes ed25519PublicFromSeed(const Bytes& seed32);
 Bytes ed25519Sign(const Bytes& seed32, const Bytes& msg);
 bool  ed25519Verify(const Bytes& pub32, const Bytes& msg, const Bytes& sig64);
 
-// ── SRP-6a, 3072-bit, SHA-512 — CLIENT side (HAP pair-setup) ──────────
+// ── SRP-6a, 3072-bit, SHA-512, CLIENT side (HAP pair-setup) ──────────
 //
 // HomeKit pairing uses SRP-6a with N/g = RFC 5054 group 3072 (g = 5) and
 // SHA-512. The username is always "Pair-Setup"; the password is the PIN
 // ("3939" for transient HomePod pairing, the on-screen 4-digit code for
 // Apple TV). The padding convention (k and u hashed over N-length
 // zero-padded big-endian operands; salt/N/g hashed at natural length)
-// matches pyatv's srptools AND pair_ap's H_nn_pad — both ends of this
+// matches pyatv's srptools AND pair_ap's H_nn_pad, both ends of this
 // project's own test rig use it, so it is internally consistent and also
 // what real Apple receivers expect.
 class SrpClient {
@@ -98,13 +98,13 @@ public:
     // public `A = g^a mod N`.
     void start(const std::string& password);
 
-    // Public client value A (big-endian, trimmed of leading zero bytes —
+    // Public client value A (big-endian, trimmed of leading zero bytes,
     // the wire form HAP TLV8 PublicKey carries).
     Bytes publicA() const;
 
     // Process the server's salt + public B. Computes the shared session
     // key K = SHA-512(S) and the client proof M1. Returns false if B ≡ 0
-    // (mod N) — a malicious/garbled server value.
+    // (mod N), a malicious/garbled server value.
     bool process(const Bytes& salt, const Bytes& serverB);
 
     Bytes proofM1() const;        // 64 bytes
@@ -122,7 +122,7 @@ private:
 //
 // One level only (HAP never nests). A repeated tag whose value exceeds
 // 255 bytes is split into consecutive same-tag chunks on write and
-// re-joined on read — required for the 384-byte SRP PublicKey.
+// re-joined on read, required for the 384-byte SRP PublicKey.
 namespace tlv {
 
 enum Type : uint8_t {
@@ -150,12 +150,12 @@ std::optional<Bytes> get(const Map& m, uint8_t tag);
 
 } // namespace tlv
 
-// ── Apple binary property list (bplist00) — minimal encoder/decoder ───
+// ── Apple binary property list (bplist00), minimal encoder/decoder ───
 //
 // Hand-framed in the spirit of cast_channel.cpp's protobuf: enough of the
 // bplist grammar to round-trip the AirPlay 2 SETUP request/response
 // dictionaries (dict / array / string / data / int / bool / real). NOT a
-// general libplist replacement — it covers exactly the value types Apple
+// general libplist replacement, it covers exactly the value types Apple
 // receivers use for SETUP/SETUP-stream and nothing more.
 namespace bplist {
 

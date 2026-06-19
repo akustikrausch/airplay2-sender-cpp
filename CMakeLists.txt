@@ -1,8 +1,8 @@
-# airplay 2 sender — build the Qt-free crypto + wire-format core.
+# airplay 2 sender, build the Qt-free crypto + wire-format core.
 #
 # the reusable part (`airplay_crypto`) builds standalone. the AP2 SENDER
 # (`src/raop_sender.*`) is reference source that still uses Qt networking +
-# host glue and is NOT wired here yet — see ROADMAP.md.
+# host glue and is NOT wired here yet, see ROADMAP.md.
 cmake_minimum_required(VERSION 3.16)
 project(airplay2_sender LANGUAGES C CXX)
 

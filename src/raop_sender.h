@@ -59,7 +59,7 @@ namespace fxchain {
 
 template <typename T> class RingBuffer;
 
-// v0.66.x Phase 2/3 — opaque pairing/crypto state lives in the .cpp so the
+// v0.66.x Phase 2/3, opaque pairing/crypto state lives in the .cpp so the
 // header stays free of the airplay_crypto includes (the SrpClient / ChaCha
 // cipher state). Forward-declared here.
 struct RaopAp2State;
@@ -78,7 +78,7 @@ public:
     // passes through; anything else is linear-resampled to 44100.
     void setInputFormat(uint32_t sampleRate);
 
-    // v0.66.x Phase 2/3 — describe how the receiver must be reached BEFORE
+    // v0.66.x Phase 2/3, describe how the receiver must be reached BEFORE
     // start(). `auth` selects auth-setup / legacy-PIN / HAP-transient /
     // HAP-PIN / password / none; `airplay2` switches to the encrypted AP2
     // transport (bplist SETUP + ChaCha20 audio). `credsJson` carries stored
@@ -93,7 +93,7 @@ public:
     void stop();   // TEARDOWN + close
     bool active() const { return state_ != State::Idle; }
 
-    // v0.66.x Phase 2 — supply the on-screen PIN the user typed (drives the
+    // v0.66.x Phase 2, supply the on-screen PIN the user typed (drives the
     // legacy/HAP PIN pairing). Only meaningful while waitingForPin() is true.
     void submitPin(const QString& code);
     bool waitingForPin() const { return waitingForPin_; }
@@ -116,17 +116,17 @@ public:
 signals:
     void launched(bool ok, const QString& error);  // RECORD accepted / failed
     void closed();                                  // session ended
-    // v0.66.x Phase 2 — the receiver shows a PIN; the UI must collect 4
+    // v0.66.x Phase 2, the receiver shows a PIN; the UI must collect 4
     // digits and call submitPin(). `deviceName` is the friendly name.
     void pinRequired(const QString& deviceName);
-    // v0.66.x Phase 2 — a successful FIRST pairing produced long-term
+    // v0.66.x Phase 2, a successful FIRST pairing produced long-term
     // credentials the bridge should persist for this device id (so later
     // connects skip the PIN). `credsJson` is opaque to the bridge.
     void credentialsObtained(const QByteArray& deviceId,
                              const QString& credsJson);
 
 private:
-    // v0.66.x — the handshake now has a pairing phase between Connecting
+    // v0.66.x, the handshake now has a pairing phase between Connecting
     // and the audio Setup/Record chain.
     enum class State { Idle, Connecting, Pairing, Handshake, Streaming };
 
@@ -152,7 +152,7 @@ private:
     void sendRecord_();
     void startStreaming_();
 
-    // ── v0.66.x Phase 2/3 — auth + AP2 ───────────────────────────────
+    // ── v0.66.x Phase 2/3, auth + AP2 ───────────────────────────────
     // After TCP connect, run the auth/pairing chain; on success continue
     // to the audio Setup/Record (AP1) or the AP2 bplist SETUP path.
     void beginAuthChain_();
@@ -160,10 +160,10 @@ private:
                             const QHash<QByteArray, QByteArray>& headers,
                             const QByteArray& body);
     void afterAuthOk_();          // → AP1 ANNOUNCE or AP2 SETUP
-    // auth-setup (MFiSAP) — one POST, response ignored.
+    // auth-setup (MFiSAP), one POST, response ignored.
     void sendAuthSetup_();
     // HAP transient / PIN pair-setup state machine (M1..M6) + pair-verify.
-    // v0.66.x — POST /pair-pin-start (header X-Apple-HKP: 3) BEFORE M1 on the
+    // v0.66.x, POST /pair-pin-start (header X-Apple-HKP: 3) BEFORE M1 on the
     // on-screen-PIN path. This is the request that makes a tvOS Apple TV
     // render its 4-digit code (owntone payload_make_pin_start / pyatv
     // start_pairing both do this). Without it the device silently returns
@@ -180,7 +180,7 @@ private:
     // AP2 binary-plist SETUP (session + stream) and RECORD.
     void sendAp2Info_();
     // AP2 SETUP/RECORD etc. are RTSP methods on the rtsp://host/sessionId URI
-    // (NOT a POST /setup path — that 404s), but their replies carry a
+    // (NOT a POST /setup path, that 404s), but their replies carry a
     // binary-plist body, so they route through the body-capturing pairing
     // dispatcher (pendingIsHttp_=true) just like the pairing POSTs.
     void sendAp2Rtsp_(const QByteArray& method, const QByteArray& uri,
@@ -226,7 +226,7 @@ private:
     quint64    ctrlSendCtr_ = 0;
     quint64    ctrlRecvCtr_ = 0;
     QByteArray rtspEncBuf_;
-    // #90/#109 — AP2 event channel (encrypted, same HomeKit frame format as the
+    // #90/#109, AP2 event channel (encrypted, same HomeKit frame format as the
     // control channel but keyed with the Events keys + its own counters). The
     // receiver pushes RTSP requests we must decrypt and answer "200 OK" or it
     // tears down the session at ~25 s.
@@ -244,10 +244,10 @@ private:
     QHostAddress hostAddr_;
     State      state_ = State::Idle;
 
-    // #90 — AP2 event channel: a modern Apple TV requires an (encrypted) TCP
+    // #90, AP2 event channel: a modern Apple TV requires an (encrypted) TCP
     // connection to the session-SETUP `eventPort` to be OPEN before it will
-    // accept RECORD. We don't transmit on it — the receiver pushes play/pause
-    // events we ignore — so a plain connected socket satisfies the prerequisite.
+    // accept RECORD. We don't transmit on it, the receiver pushes play/pause
+    // events we ignore, so a plain connected socket satisfies the prerequisite.
     QTcpSocket eventSock_;
 
     // ── UDP transport ────────────────────────────────────────────
@@ -260,7 +260,7 @@ private:
     quint16    timingPort_  = 0;
 
     // ── stream clock / RTP state ─────────────────────────────────
-    QTimer        pacer_;        // 8 ms precise — token-bucket sender
+    QTimer        pacer_;        // 8 ms precise, token-bucket sender
     QTimer        syncTimer_;    // 1 Hz sync packets
     QTimer        timeout_;      // handshake watchdog
     QTimer        pinTimeout_;   // on-screen-PIN wait watchdog (user-driven)
@@ -287,12 +287,12 @@ private:
     QString    npTitle_, npArtist_, npAlbum_;   // now-playing metadata
     QByteArray npCover_, npCoverMime_;          // cover art bytes + MIME
 
-    // ── v0.66.x Phase 2/3 — auth + AP2 state ─────────────────────────
+    // ── v0.66.x Phase 2/3, auth + AP2 state ─────────────────────────
     // The pairing sub-state machine: which reply the next HTTP POST's
     // response corresponds to (the wire has no method tag we can rely on).
     enum class PairStage {
         None, AuthSetup,
-        // v0.66.x — /pair-pin-start (HKP mode 3) precedes M1 on the on-screen
+        // v0.66.x, /pair-pin-start (HKP mode 3) precedes M1 on the on-screen
         // PIN path; it is what makes the Apple TV DISPLAY its 4-digit code.
         PinStart,
         SetupM2, SetupM4, SetupM6,
@@ -308,7 +308,7 @@ private:
     QString    digestPassword_;  // pw=true RTSP digest password
     bool       waitingForPin_ = false;
     // One-shot: a Mac-style receiver 403s /pair-pin-start (Macs don't show an
-    // on-screen AirPlay PIN) — we then try PIN-less transient pairing once.
+    // on-screen AirPlay PIN), we then try PIN-less transient pairing once.
     bool       triedTransientAfterPin403_ = false;
     // SRP exchange scratch (server salt + B captured at M2 for M3).
     QByteArray srpSalt_, srpServerB_;

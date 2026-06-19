@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// v0.66.x — RaopSender implementation (AirPlay-1 / RAOP audio sender).
+// v0.66.x, RaopSender implementation (AirPlay-1 / RAOP audio sender).
 //
-// ATTRIBUTION: the RAOP protocol logic in this file — RTSP sequence,
+// ATTRIBUTION: the RAOP protocol logic in this file, RTSP sequence,
 // SDP ANNOUNCE payload, RTP/sync/timing/retransmit packet formats, the
-// NTP<->timestamp conversions and the fixed-latency timeline model —
+// NTP<->timestamp conversions and the fixed-latency timeline model,
 // is ported to C++ from pyatv (https://github.com/postlund/pyatv,
 // Copyright (c) Pierre Ståhl, MIT License; specifically
 // pyatv/protocols/raop/{stream_client.py,packets.py,timing.py,
@@ -15,7 +15,7 @@
 //
 // Wire-format notes verified against pyatv (2026-05 tree):
 //  • ANNOUNCE advertises raw PCM: `a=rtpmap:96 L16/44100/2` with the
-//    classic ALAC-style fmtp parameter list — every modern receiver
+//    classic ALAC-style fmtp parameter list, every modern receiver
 //    (Apple + shairport-sync) accepts uncompressed L16, which spares
 //    us an ALAC encoder for Phase 1.
 //  • Payload byte order is BIG-endian s16 (RFC 3551 L16 network order;
@@ -29,8 +29,8 @@
 //
 // Deviation from pyatv, documented: pyatv sends a bare RECORD followed
 // by a FLUSH carrying Range/Session/RTP-Info (a leftover of its seek
-// machinery). We send the classic iTunes/OwnTone form instead — ONE
-// RECORD with Range + Session + RTP-Info — which is what RAOP receivers
+// machinery). We send the classic iTunes/OwnTone form instead, ONE
+// RECORD with Range + Session + RTP-Info, which is what RAOP receivers
 // have parsed since 2004 and strictly more conventional.
 
 #include "raop_sender.h"
@@ -50,7 +50,7 @@
 
 namespace fxchain {
 
-// ── v0.66.x Phase 2/3 — AirPlay-2 pairing + encryption session state ───
+// ── v0.66.x Phase 2/3, AirPlay-2 pairing + encryption session state ───
 //
 // Held by unique_ptr from RaopSender so the header stays free of the
 // airplay_crypto types. Carries the SRP client, the controller's long-term
@@ -78,7 +78,7 @@ struct RaopAp2State {
     airplay::X25519KeyPair verifyKeys;
     Bytes sharedSecret;        // X25519 ECDH output (pair-verify) OR SRP K (transient)
     Bytes controlOut, controlIn;
-    // #90/#109 — AP2 event channel keys (encrypted TCP to eventPort). The
+    // #90/#109, AP2 event channel keys (encrypted TCP to eventPort). The
     // receiver pushes encrypted MediaRemote/Command events; we must decrypt +
     // 200-OK them or it tears down the session after ~25 s.
     Bytes eventOut, eventIn;
@@ -110,9 +110,9 @@ constexpr int      kBacklogSize     = 1024;         // power of two
 constexpr int      kPacerMs         = 8;            // ≈ 1 packet/tick
 constexpr int      kMaxPacketsPerTick = 16;         // GUI-stall catch-up cap
 constexpr int      kHandshakeTimeoutMs = 10000;
-constexpr int      kPinWaitTimeoutMs  = 180000;     // 3 min — read a code off the TV
+constexpr int      kPinWaitTimeoutMs  = 180000;     // 3 min, read a code off the TV
 constexpr int      kFeedbackIntervalMs = 25000;     // pyatv KEEP_ALIVE_INTERVAL
-// Cap the resampler's staging buffer (frames). ~0.2 s at 48 kHz — the
+// Cap the resampler's staging buffer (frames). ~0.2 s at 48 kHz, the
 // engine ring itself is the deep buffer; this is just working set.
 constexpr size_t   kInBufMaxFrames  = 8192;
 
@@ -128,7 +128,7 @@ void be32(QByteArray& out, quint32 v) {
     out += char((v >> 8) & 0xFF); out += char(v & 0xFF);
 }
 
-// pyatv timing.py — NTP <-> RTP-timestamp conversion.
+// pyatv timing.py, NTP <-> RTP-timestamp conversion.
 quint64 ntp2ts(quint64 ntp, uint32_t rate) {
     return ((ntp >> 16) * rate) >> 16;
 }
@@ -136,7 +136,7 @@ quint64 ts2ntp(quint64 ts, uint32_t rate) {
     return ((ts << 16) / rate) << 16;
 }
 
-// v0.66.x — QByteArray <-> airplay::Bytes bridges (the crypto layer is
+// v0.66.x, QByteArray <-> airplay::Bytes bridges (the crypto layer is
 // Qt-free std::vector<uint8_t>; the wire layer is QByteArray).
 airplay::Bytes toBytes(const QByteArray& b) {
     return airplay::Bytes(b.constData(),
@@ -156,14 +156,14 @@ RaopSender::RaopSender(QObject* parent) : QObject(parent) {
         if (state_ != State::Connecting) return;
         Log::info("Cast: RAOP RTSP connected to {}:{}",
                   host_.toStdString(), rtsp_.peerPort());
-        // v0.66.x Phase 2/3 — run the auth/pairing chain first; for plain
+        // v0.66.x Phase 2/3, run the auth/pairing chain first; for plain
         // Phase-1 receivers it falls straight through to OPTIONS.
         beginAuthChain_();
     });
     connect(&rtsp_, &QTcpSocket::readyRead,
             this, &RaopSender::onRtspReadyRead_);
     connect(&rtsp_, &QTcpSocket::disconnected, this, [this]() {
-        if (state_ == State::Idle) return;   // our own stop() — quiet
+        if (state_ == State::Idle) return;   // our own stop(), quiet
         const bool wasStarting = state_ != State::Streaming;
         state_ = State::Idle;
         pacer_.stop(); syncTimer_.stop(); timeout_.stop(); pinTimeout_.stop();
@@ -183,11 +183,11 @@ RaopSender::RaopSender(QObject* parent) : QObject(parent) {
             this, &RaopSender::onControlDatagram_);
     connect(&timingSock_, &QUdpSocket::readyRead,
             this, &RaopSender::onTimingDatagram_);
-    // #90 — AP2 event channel: drain (and discard) receiver→sender events; the
+    // #90, AP2 event channel: drain (and discard) receiver→sender events; the
     // connection only needs to exist for RECORD to be accepted.
     connect(&eventSock_, &QTcpSocket::readyRead, this,
             &RaopSender::onEventReadyRead_);
-    // Audit H2 — surface an event-channel drop instead of silently ignoring it
+    // Audit H2, surface an event-channel drop instead of silently ignoring it
     // (a receiver that drops the event channel usually tears down the session).
     connect(&eventSock_, &QTcpSocket::errorOccurred, this,
             [this](QAbstractSocket::SocketError) {
@@ -196,7 +196,7 @@ RaopSender::RaopSender(QObject* parent) : QObject(parent) {
                               eventSock_.errorString().toStdString());
             });
 
-    // 8 ms PRECISE pacer — Qt's default coarse timer has 5 % slack,
+    // 8 ms PRECISE pacer, Qt's default coarse timer has 5 % slack,
     // which at 125 ticks/s would wander audibly against the 44.1 kHz
     // budget; the token bucket in onPacerTick_ absorbs the remainder.
     pacer_.setInterval(kPacerMs);
@@ -210,21 +210,21 @@ RaopSender::RaopSender(QObject* parent) : QObject(parent) {
     timeout_.setSingleShot(true);
     timeout_.setInterval(kHandshakeTimeoutMs);
     connect(&timeout_, &QTimer::timeout, this, [this]() {
-        // v0.66.x — a PIN wait is user-driven; pinTimeout_ guards that.
+        // v0.66.x, a PIN wait is user-driven; pinTimeout_ guards that.
         if (waitingForPin_) return;
         if (state_ == State::Connecting || state_ == State::Pairing
             || state_ == State::Handshake) {
-            // #150 diag — name WHERE the handshake stalled. The MacBook
+            // #150 diag, name WHERE the handshake stalled. The MacBook
             // (hap-transient, sf=0x4) stalls at stage Ap2Session: the session
             // SETUP gets no reply, while the Apple TV (hap-pin) proceeds.
-            Log::warn("Cast: AirPlay handshake TIMEOUT — state={} pairStage={} "
+            Log::warn("Cast: AirPlay handshake TIMEOUT, state={} pairStage={} "
                       "(receiver sent no usable reply)",
                       static_cast<int>(state_), static_cast<int>(pairStage_));
             fail_(tr("Timed out waiting for the device"));
         }
     });
 
-    // v0.66.x — the on-screen-PIN wait gets its OWN (generous) watchdog so a
+    // v0.66.x, the on-screen-PIN wait gets its OWN (generous) watchdog so a
     // device that never shows a code (Apple TV asleep / TV on another input)
     // can't leave the session stuck on "waiting for code" forever.
     pinTimeout_.setSingleShot(true);
@@ -240,9 +240,9 @@ RaopSender::RaopSender(QObject* parent) : QObject(parent) {
     connect(&feedbackTimer_, &QTimer::timeout, this, [this]() {
         if (state_ != State::Streaming) return;
         if (airplay2_) {
-            // #90/#109 — AP2 keep-alive: a post-RECORD Apple TV closes the
+            // #90/#109, AP2 keep-alive: a post-RECORD Apple TV closes the
             // session after ~30 s without a VALID feedback request. The control
-            // channel is RTSP, not HTTP — owntone/pyatv send `POST /feedback
+            // channel is RTSP, not HTTP, owntone/pyatv send `POST /feedback
             // RTSP/1.0` with the standard RTSP identity headers (CSeq /
             // DACP-ID / Active-Remote / Client-Instance). An `HTTP/1.1` line is
             // silently ignored by the receiver's RTSP parser, so its liveness
@@ -268,7 +268,7 @@ RaopSender::RaopSender(QObject* parent) : QObject(parent) {
 RaopSender::~RaopSender() = default;
 
 void RaopSender::setInputFormat(uint32_t sampleRate) {
-    // 0 = no device open yet — assume the WASAPI default like the
+    // 0 = no device open yet, assume the WASAPI default like the
     // PcmStreamServer does; the resampler handles any real rate.
     inputRate_ = sampleRate > 0 ? sampleRate : 48000;
 }
@@ -295,7 +295,7 @@ quint64 RaopSender::ntpNow_() {
 }
 
 quint32 RaopSender::rtptime32_() const {
-    // pyatv StreamContext.rtptime: head_ts - (start_ts - latency) —
+    // pyatv StreamContext.rtptime: head_ts - (start_ts - latency),
     // the huge NTP-derived base cancels, so this starts at `latency`
     // and advances one per frame sent. u32 wrap is the RTP norm.
     return quint32(quint64(latency_) + framesSent_);
@@ -318,7 +318,7 @@ void RaopSender::start(const QString& host, quint16 port, const QString& name) {
     seq_          = quint16(rng->bounded(65536));
     cseq_ = 0;
     rxBuf_.clear();
-    // #90 — fresh connection starts with a PLAINTEXT control channel; it flips
+    // #90, fresh connection starts with a PLAINTEXT control channel; it flips
     // to encrypted in afterAuthOk_ once pair-verify keys the channel.
     controlEncrypted_ = false;
     ctrlSendCtr_ = 0;
@@ -338,7 +338,7 @@ void RaopSender::start(const QString& host, quint16 port, const QString& name) {
     backlogSeq_.assign(kBacklogSize, -1);
     pendingVolumeDb_ = kNoVolume;   // never carry volume between devices
 
-    // v0.66.x Phase 2/3 — reset auth/AP2 state for the new session.
+    // v0.66.x Phase 2/3, reset auth/AP2 state for the new session.
     ap2_.reset();
     pairStage_       = PairStage::None;   // never carry a stale stage in
     waitingForPin_   = false;
@@ -351,12 +351,12 @@ void RaopSender::start(const QString& host, quint16 port, const QString& name) {
     pendingDigestUri_.clear();
     digestRetried_   = false;
 
-    // Bind the UDP trio BEFORE SETUP — the request advertises our
+    // Bind the UDP trio BEFORE SETUP, the request advertises our
     // control/timing ports so the receiver can reach them. AnyIPv4 so
     // the receiver's unicast packets arrive regardless of which local
     // interface routes to it. (First real-device run: if the receiver
     // never clock-syncs, check the Windows-Firewall inbound rule for
-    // the app — these are unsolicited inbound UDP datagrams.)
+    // the app, these are unsolicited inbound UDP datagrams.)
     if (!timingSock_.bind(QHostAddress::AnyIPv4, 0)
         || !controlSock_.bind(QHostAddress::AnyIPv4, 0)
         || !audioSock_.bind(QHostAddress::AnyIPv4, 0)) {
@@ -381,14 +381,14 @@ void RaopSender::stop() {
     feedbackTimer_.stop();
     if (rtsp_.state() == QAbstractSocket::ConnectedState
         && (!rtspSession_.isEmpty() || airplay2_)) {
-        // v0.66.x — AP2 has no RTSP Session header (no RTSP SETUP), so send
+        // v0.66.x, AP2 has no RTSP Session header (no RTSP SETUP), so send
         // a bare TEARDOWN; AP1 carries the Session it got from SETUP.
         QList<QPair<QByteArray, QByteArray>> extra;
         if (!rtspSession_.isEmpty())
             extra.append({QByteArrayLiteral("Session"), rtspSession_});
         sendRequest_(QByteArrayLiteral("TEARDOWN"), rtspUri_(), {}, {}, extra);
         // Same lesson as CastChannel::stop(): make sure the TEARDOWN
-        // actually leaves this machine before the socket goes away —
+        // actually leaves this machine before the socket goes away,
         // otherwise the receiver keeps the session open for minutes.
         rtsp_.flush();
         rtsp_.waitForBytesWritten(500);
@@ -401,7 +401,7 @@ void RaopSender::stop() {
     audioSock_.close();
     controlSock_.close();
     timingSock_.close();
-    eventSock_.abort();   // #90 — AP2 event channel
+    eventSock_.abort();   // #90, AP2 event channel
     // Free the backlog payloads (~1.4 MB when full).
     for (auto& b : backlog_) b = QByteArray();
     backlogSeq_.assign(kBacklogSize, -1);
@@ -409,7 +409,7 @@ void RaopSender::stop() {
 }
 
 void RaopSender::fail_(const QString& why) {
-    Log::warn("Cast: RAOP error — {}", why.toStdString());
+    Log::warn("Cast: RAOP error, {}", why.toStdString());
     const bool wasStarting = state_ != State::Streaming;
     state_ = State::Idle;
     pacer_.stop();
@@ -421,7 +421,7 @@ void RaopSender::fail_(const QString& why) {
     audioSock_.close();
     controlSock_.close();
     timingSock_.close();
-    eventSock_.abort();   // #90 — don't leak the AP2 event-channel auto-responder
+    eventSock_.abort();   // #90, don't leak the AP2 event-channel auto-responder
     if (wasStarting) emit launched(false, why);
     emit closed();
 }
@@ -448,8 +448,8 @@ void RaopSender::submitPin(const QString& code) {
     waitingForPin_ = false;
     pinTimeout_.stop();
     timeout_.start();   // re-arm the handshake watchdog
-    Log::info("Cast: AirPlay PIN entered — continuing pairing");
-    // HAP normal PIN — run SRP M3 with the user's code. (Legacy "Fruit"
+    Log::info("Cast: AirPlay PIN entered, continuing pairing");
+    // HAP normal PIN, run SRP M3 with the user's code. (Legacy "Fruit"
     // PIN never reaches here: it fails fast in beginAuthChain_.)
     sendPairSetupM3_(code);
 }
@@ -521,11 +521,11 @@ void RaopSender::sendMetadata_() {
                          mime, npCover_, hdr);
             coverSent = true;
         } else {
-            Log::info("Cast: RAOP cover not sent — {} bytes exceeds the 8 MB cap",
+            Log::info("Cast: RAOP cover not sent, {} bytes exceeds the 8 MB cap",
                       npCover_.size());
         }
     }
-    Log::info("Cast: RAOP now-playing pushed — '{}' / '{}'{}",
+    Log::info("Cast: RAOP now-playing pushed, '{}' / '{}'{}",
               npTitle_.toStdString(), npArtist_.toStdString(),
               coverSent ? " + cover" : "");
 }
@@ -548,8 +548,8 @@ void RaopSender::sendRequest_(const QByteArray& method, const QByteArray& uri,
     req += "DACP-ID: " + dacpId_ + "\r\n";
     req += "Active-Remote: " + QByteArray::number(activeRemote_) + "\r\n";
     req += "Client-Instance: " + dacpId_ + "\r\n";
-    req += "X-Apple-Client-Name: FXChainPlayer\r\n";   // AirPlay-bug fix — owntone parity
-    // v0.66.x — RTSP digest auth for pw=true receivers: once a 401 has
+    req += "X-Apple-Client-Name: FXChainPlayer\r\n";   // AirPlay-bug fix, owntone parity
+    // v0.66.x, RTSP digest auth for pw=true receivers: once a 401 has
     // told us realm+nonce, every subsequent request carries Authorization.
     if (!digestNonce_.isEmpty() && !digestPassword_.isEmpty()) {
         const std::string ah = airplay::digestAuthResponse(
@@ -576,7 +576,7 @@ void RaopSender::sendRequest_(const QByteArray& method, const QByteArray& uri,
         timeout_.start();   // fresh window per handshake step
 }
 
-// AP2 encrypted control channel (#90) — frame the request bytes
+// AP2 encrypted control channel (#90), frame the request bytes
 // [2-byte LE len][cipher][16-byte tag], chunked at 1024, Control-Write key +
 // 8-byte LE per-frame counter; plaintext before pair-verify completes.
 void RaopSender::writeRtsp_(const QByteArray& data) {
@@ -605,17 +605,17 @@ void RaopSender::writeRtsp_(const QByteArray& data) {
     rtsp_.write(out);
 }
 
-// #90/#109 — AP2 event channel. The receiver pushes encrypted RTSP requests
+// #90/#109, AP2 event channel. The receiver pushes encrypted RTSP requests
 // (POST /command updateInfo, sendMediaRemoteCommand, …); we MUST decrypt each
 // and answer "RTSP/1.0 200 OK" or the Apple TV tears the session down at ~25 s.
 // Same HomeKit frame format as the control channel ([2-byte LE len][cipher]
 // [16-byte tag], AAD = the 2 length bytes, nonce = 4 zero + 8-byte LE counter),
 // keyed with the Events keys + independent per-direction counters (eventIn
-// decrypts, eventOut encrypts — swapped because it's a reverse connection).
+// decrypts, eventOut encrypts, swapped because it's a reverse connection).
 void RaopSender::onEventReadyRead_() {
-    if (state_ == State::Idle) { eventSock_.readAll(); return; }  // dead session — drain, don't auto-answer
+    if (state_ == State::Idle) { eventSock_.readAll(); return; }  // dead session, drain, don't auto-answer
     if (!ap2_ || ap2_->eventIn.size() != 32 || ap2_->eventOut.size() != 32) {
-        eventSock_.readAll();   // not keyed yet — drain
+        eventSock_.readAll();   // not keyed yet, drain
         return;
     }
     eventEncBuf_ += eventSock_.readAll();
@@ -637,7 +637,7 @@ void RaopSender::onEventReadyRead_() {
         const airplay::Bytes aad(lp, lp + 2);
         auto dec = airplay::chacha20Poly1305Decrypt(ap2_->eventIn, nonce8, ctTag, aad);
         if (!dec) {
-            Log::warn("Cast: AirPlay 2 event-channel decrypt failed — dropping");
+            Log::warn("Cast: AirPlay 2 event-channel decrypt failed, dropping");
             eventEncBuf_.clear();
             return;
         }
@@ -663,7 +663,7 @@ void RaopSender::onEventReadyRead_() {
         const int total = headEnd + 4 + (contentLen > 0 ? contentLen : 0);
         if (eventPlainBuf_.size() < total) break;   // body still arriving
         eventPlainBuf_.remove(0, total);
-        // Encrypted 200 OK — owntone's respond() sends a BARE 200 (just Server),
+        // Encrypted 200 OK, owntone's respond() sends a BARE 200 (just Server),
         // no Content-Length/Audio-Latency (those can corrupt the receiver's
         // realtime timeline). Echo CSeq when the request carried one.
         QByteArray resp = "RTSP/1.0 200 OK\r\n";
@@ -696,10 +696,10 @@ void RaopSender::onRtspReadyRead_() {
     if (!controlEncrypted_ || !ap2_) {
         rxBuf_ += rtsp_.readAll();
     } else {
-        // AP2 encrypted control channel (#90) — decrypt whole frames
+        // AP2 encrypted control channel (#90), decrypt whole frames
         // [2-byte LE len][cipher][16-byte tag] into the plaintext rxBuf_.
         const QByteArray encChunk = rtsp_.readAll();
-        if (!encChunk.isEmpty())   // #150 diag — does the receiver reply at all?
+        if (!encChunk.isEmpty())   // #150 diag, does the receiver reply at all?
             Log::info("Cast: AirPlay 2 control rx +{} enc byte(s)", int(encChunk.size()));
         rtspEncBuf_ += encChunk;
         while (rtspEncBuf_.size() >= 2) {
@@ -728,7 +728,7 @@ void RaopSender::onRtspReadyRead_() {
             rtspEncBuf_.remove(0, need);
         }
     }
-    // Audit fix — a hostile/buggy receiver that dribbles a never-terminating
+    // Audit fix, a hostile/buggy receiver that dribbles a never-terminating
     // head (or a huge Content-Length) could grow rxBuf_ unbounded. RTSP control
     // responses are tiny; cap the buffer and drop the session if exceeded.
     if (rxBuf_.size() > 4 * 1024 * 1024) {
@@ -751,10 +751,10 @@ void RaopSender::onRtspReadyRead_() {
         }
         bool clOk = false;
         int contentLen = headers.value("content-length", "0").toInt(&clOk);
-        if (!clOk || contentLen < 0) contentLen = 0;   // audit fix — reject bad/negative length
+        if (!clOk || contentLen < 0) contentLen = 0;   // audit fix, reject bad/negative length
         if (rxBuf_.size() < headEnd + 4 + contentLen) return;   // body pending
         const QByteArray statusLine = lines.value(0).trimmed();
-        // v0.66.x — pairing + AP2 plists need the body, so capture it now.
+        // v0.66.x, pairing + AP2 plists need the body, so capture it now.
         const QByteArray body = rxBuf_.mid(headEnd + 4, contentLen);
         rxBuf_.remove(0, headEnd + 4 + contentLen);
 
@@ -762,7 +762,7 @@ void RaopSender::onRtspReadyRead_() {
         const bool isHttp = statusLine.startsWith("HTTP/");
         if (!isRtsp && !isHttp) {
             // A server→client RTSP request (rare; some receivers push
-            // events). We don't act on any — consume + log.
+            // events). We don't act on any, consume + log.
             Log::info("Cast: RAOP ignoring server request '{}'",
                       statusLine.toStdString());
             continue;
@@ -777,7 +777,7 @@ void RaopSender::onRtspReadyRead_() {
         const bool replyIsHttp = pendingIsHttp_.isEmpty()
                                      ? false : pendingIsHttp_.takeFirst();
 
-        // v0.66.x Phase 2/3 — route HTTP-mode replies (pairing / AP2
+        // v0.66.x Phase 2/3, route HTTP-mode replies (pairing / AP2
         // plists) to the pairing dispatcher; everything else is RTSP.
         if (replyIsHttp) {
             onPairingResponse_(code, headers, body);
@@ -790,7 +790,7 @@ void RaopSender::onRtspReadyRead_() {
 
 void RaopSender::handleResponse_(const QByteArray& method, int code,
                                  const QHash<QByteArray, QByteArray>& headers) {
-    // Streaming-time auxiliaries first — failures are non-fatal there.
+    // Streaming-time auxiliaries first, failures are non-fatal there.
     if (method == "SET_PARAMETER") {
         if (code != 200)
             Log::warn("Cast: RAOP SET_PARAMETER rejected ({})", code);
@@ -801,15 +801,15 @@ void RaopSender::handleResponse_(const QByteArray& method, int code,
             if (!feedbackTimer_.isActive()) feedbackTimer_.start();
         } else {
             feedbackTimer_.stop();
-            Log::info("Cast: RAOP /feedback not supported ({}) — "
+            Log::info("Cast: RAOP /feedback not supported ({}), "
                       "keep-alive disabled", code);
         }
         return;
     }
-    if (method == "FEEDBACK") return;   // AP2 keep-alive — reply ignored
+    if (method == "FEEDBACK") return;   // AP2 keep-alive, reply ignored
     if (method == "TEARDOWN") return;
 
-    // v0.66.x — RTSP digest auth for pw=true receivers (RFC 2617 MD5).
+    // v0.66.x, RTSP digest auth for pw=true receivers (RFC 2617 MD5).
     if (code == 401) {
         if (digestPassword_.isEmpty()) {
             fail_(tr("The device requires a password"));
@@ -837,7 +837,7 @@ void RaopSender::handleResponse_(const QByteArray& method, int code,
             return;
         }
         digestRetried_ = true;
-        Log::info("Cast: RAOP digest challenge — re-sending '{}' with auth",
+        Log::info("Cast: RAOP digest challenge, re-sending '{}' with auth",
                   method.toStdString());
         // Re-issue the request that was rejected. sendRequest_ now attaches
         // the Authorization header (digestNonce_ is set).
@@ -851,11 +851,11 @@ void RaopSender::handleResponse_(const QByteArray& method, int code,
     if (code < 200 || code >= 300) {
         // AP2 sends RECORD + FLUSH fire-and-forget AFTER streaming has already
         // begun. Some Apple TVs reject RECORD on the encrypted realtime channel
-        // (500) — that is NON-fatal: the FLUSH timeline anchor + the sync
+        // (500), that is NON-fatal: the FLUSH timeline anchor + the sync
         // packets drive playback. Only a handshake-phase (pre-Streaming)
         // failure aborts the session.
         if (state_ == State::Streaming && (method == "RECORD" || method == "FLUSH")) {
-            Log::info("Cast: RAOP {} not accepted ({}) — non-fatal (AP2 realtime)",
+            Log::info("Cast: RAOP {} not accepted ({}), non-fatal (AP2 realtime)",
                       method.toStdString(), code);
             return;
         }
@@ -888,11 +888,11 @@ void RaopSender::handleResponse_(const QByteArray& method, int code,
             fail_(tr("SETUP reply carried no server_port"));
             return;
         }
-        Log::info("Cast: RAOP remote ports — server={} control={} timing={}",
+        Log::info("Cast: RAOP remote ports, server={} control={} timing={}",
                   serverPort_, controlPort_, timingPort_);
         sendRecord_();
     } else if (method == "RECORD") {
-        // The receiver may report its buffer depth; informational only —
+        // The receiver may report its buffer depth; informational only,
         // like pyatv we keep the fixed 22050+44100-frame latency model.
         const QByteArray lat = headers.value("audio-latency");
         if (!lat.isEmpty())
@@ -904,7 +904,7 @@ void RaopSender::handleResponse_(const QByteArray& method, int code,
         if (state_ != State::Streaming)
             startStreaming_();
     } else if (method == "FLUSH") {
-        // AP2 fire-and-forget timeline anchor — reply (if any) is informational.
+        // AP2 fire-and-forget timeline anchor, reply (if any) is informational.
     }
 }
 
@@ -974,13 +974,13 @@ void RaopSender::startStreaming_() {
     clock_.start();
     sendSyncPacket_(true);   // first sync carries the marker bit
     syncTimer_.start();
-    // #90 — RECORD already ran between session + stream SETUP (owntone order),
+    // #90, RECORD already ran between session + stream SETUP (owntone order),
     // so streaming just needs sync + volume + the RTP loop here.
     // Volume requested before the session was up? Apply it now. pyatv
     // uses the SAME SET_PARAMETER volume for AP1 AND AP2 (no separate AP2
-    // surface) — over the encrypted channel it just rides the same RTSP
+    // surface), over the encrypted channel it just rides the same RTSP
     // connection.
-    // #90 — an AP2 receiver can sit at its own (possibly muted) default until
+    // #90, an AP2 receiver can sit at its own (possibly muted) default until
     // told otherwise, which reads as "connected but silent". If the user never
     // set a cast volume, push 0 dB (no attenuation; the TV/AVR's own volume
     // still governs the actual loudness) so audio is audible by default.
@@ -1011,13 +1011,13 @@ void RaopSender::startStreaming_() {
     // the stream is live (track changes during playback re-push via
     // setNowPlaying → sendMetadata_).
     sendMetadata_();
-    Log::info("Cast: RAOP streaming to '{}' — RTP {} frames/packet @ {} Hz{}",
+    Log::info("Cast: RAOP streaming to '{}', RTP {} frames/packet @ {} Hz{}",
               name_.toStdString(), kFramesPerPacket, kRaopRate,
               (ap2_ && ap2_->encryptAudio) ? " (encrypted)" : "");
     emit launched(true, {});
 }
 
-// ── v0.66.x Phase 2/3 — auth + pairing + AirPlay 2 ────────────────────
+// ── v0.66.x Phase 2/3, auth + pairing + AirPlay 2 ────────────────────
 
 void RaopSender::httpPost_(const QByteArray& uri, const QByteArray& contentType,
                            const QByteArray& body) {
@@ -1036,7 +1036,7 @@ void RaopSender::httpPost_(const QByteArray& uri, const QByteArray& contentType,
     req += "Active-Remote: " + QByteArray::number(activeRemote_) + "\r\n";
     // AirPlay-bug fix (13-agent research): owntone stamps Client-Instance +
     // X-Apple-Client-Name on EVERY pairing request (request_headers_add). Our
-    // pairing builder omitted both — a macOS/Apple-TV receiver's access-control
+    // pairing builder omitted both, a macOS/Apple-TV receiver's access-control
     // gate inspects the sender identity headers before the TLV, and their
     // absence is a documented 403 cause. Mirror owntone (Client-Instance ==
     // DACP-ID value).
@@ -1058,7 +1058,7 @@ void RaopSender::beginAuthChain_() {
     using Auth = RaopDeviceInfo::Auth;
     switch (authMethod_) {
     case Auth::None:
-        // Plain Phase-1 receiver — go straight to the RTSP handshake.
+        // Plain Phase-1 receiver, go straight to the RTSP handshake.
         state_ = State::Handshake;
         sendOptions_();
         return;
@@ -1072,12 +1072,12 @@ void RaopSender::beginAuthChain_() {
         sendAuthSetup_();   // MFiSAP one-shot, then OPTIONS
         return;
     case Auth::LegacyPin:
-        // Pre-HomeKit "Fruit" pairing (SRP-2048 + AES) — only the oldest
+        // Pre-HomeKit "Fruit" pairing (SRP-2048 + AES), only the oldest
         // Apple TVs that DON'T also advertise HAP land here (modern ATV4+
         // route to the tested HapPin/HapTransient paths). Rather than run a
         // doomed unencrypted handshake the device will reject, fail with a
         // clear, actionable message. (The full legacy SRP-2048 flow needs a
-        // real legacy device to verify — tracked in UNFINISHED_FEATURES
+        // real legacy device to verify, tracked in UNFINISHED_FEATURES
         // FXC-FEAT-0613-001.)
         fail_(tr("%1 uses an older AirPlay pairing that isn't supported yet. "
                  "Update the device's software, or use an AirPlay-2 receiver "
@@ -1085,12 +1085,12 @@ void RaopSender::beginAuthChain_() {
                   .arg(name_));
         return;
     case Auth::HapTransient:
-        // HomePod / AP2 — fixed-PIN 3939 transient pairing, no UI.
+        // HomePod / AP2, fixed-PIN 3939 transient pairing, no UI.
         ap2_ = std::make_unique<RaopAp2State>();
         sendPairSetupM1_();
         return;
     case Auth::HapPin:
-        // Apple TV 4+ — stored creds → pair-verify; else on-screen PIN.
+        // Apple TV 4+, stored creds → pair-verify; else on-screen PIN.
         ap2_ = std::make_unique<RaopAp2State>();
         if (!credsJson_.isEmpty()) {
             // Load stored long-term identity + the accessory's ltpk/id.
@@ -1110,7 +1110,7 @@ void RaopSender::beginAuthChain_() {
                 return;
             }
         }
-        sendPairPinStart_();  // first pairing (PIN) — make the code appear, then M1
+        sendPairPinStart_();  // first pairing (PIN), make the code appear, then M1
         return;
     }
 }
@@ -1121,7 +1121,7 @@ void RaopSender::onPairingResponse_(int code,
     Q_UNUSED(headers);
     if (state_ == State::Idle) return;
 
-    // Audit M4 — once we're streaming the handshake is done; a late/duplicate
+    // Audit M4, once we're streaming the handshake is done; a late/duplicate
     // pairing-stage reply (e.g. a misbehaving receiver) must NOT be re-parsed
     // as a SETUP plist and tear down the live stream. Ignore it.
     if (state_ == State::Streaming) {
@@ -1138,13 +1138,13 @@ void RaopSender::onPairingResponse_(int code,
         return;
     }
 
-    // #90 — the RECORD reply (between session + stream SETUP). A modern Apple TV
+    // #90, the RECORD reply (between session + stream SETUP). A modern Apple TV
     // with the event channel open should answer 200; if it still rejects RECORD
     // (e.g. it wants PTP timing) we log the code and proceed to the stream SETUP
     // anyway so the stream is at least established. Handled before the generic
     // non-2xx abort below so a RECORD 500 doesn't kill the session.
     if (pairStage_ == PairStage::Ap2Record) {
-        Log::info("Cast: AirPlay 2 RECORD reply ({}){} — proceeding to stream SETUP",
+        Log::info("Cast: AirPlay 2 RECORD reply ({}){}, proceeding to stream SETUP",
                   code, (code >= 200 && code < 300) ? " OK" : " (not accepted)");
         sendAp2SetupStream_();
         return;
@@ -1152,7 +1152,7 @@ void RaopSender::onPairingResponse_(int code,
 
     if (code < 200 || code >= 300) {
         // HTTP 470 (RTSP_CONNECTION_AUTH_REQUIRED) on a transient pair-setup
-        // means the receiver won't do PIN-less transient pairing — it wants
+        // means the receiver won't do PIN-less transient pairing, it wants
         // real (one-time / HomeKit) pairing. Switch to HapPin and run the
         // normal sequence: /pair-pin-start (which makes the Apple TV DISPLAY
         // its 4-digit code) THEN /pair-setup M1 without the transient flag.
@@ -1161,11 +1161,11 @@ void RaopSender::onPairingResponse_(int code,
         // stage so it can't loop.
         if (code == 470 && authMethod_ == RaopDeviceInfo::Auth::HapTransient
             && pairStage_ == PairStage::SetupM2) {
-            Log::info("Cast: '{}' refused transient pairing (470) — falling "
+            Log::info("Cast: '{}' refused transient pairing (470), falling "
                       "back to on-screen PIN pairing", name_.toStdString());
             authMethod_ = RaopDeviceInfo::Auth::HapPin;
             ap2_ = std::make_unique<RaopAp2State>();   // fresh pairing state
-            // v0.66.x — /pair-pin-start (HKP 3) FIRST so the Apple TV shows
+            // v0.66.x, /pair-pin-start (HKP 3) FIRST so the Apple TV shows
             // its code, THEN M1. Sending M1 alone returns salt+B but never
             // displays a code (the user's "waiting for code" hang).
             sendPairPinStart_();
@@ -1176,10 +1176,10 @@ void RaopSender::onPairingResponse_(int code,
         // it rejects the pin-start. When access is "Anyone on the Same
         // Network" the Mac still accepts PIN-LESS TRANSIENT pairing, so try
         // that once before giving up. (One-shot, so a genuine "Current User"
-        // Mac — which 403s transient too — falls through to the message.)
+        // Mac, which 403s transient too, falls through to the message.)
         if (code == 403 && pairStage_ == PairStage::PinStart
             && !triedTransientAfterPin403_) {
-            Log::info("Cast: '{}' refused /pair-pin-start (403) — no on-screen "
+            Log::info("Cast: '{}' refused /pair-pin-start (403), no on-screen "
                       "PIN (Mac-style); trying transient pairing",
                       name_.toStdString());
             triedTransientAfterPin403_ = true;
@@ -1189,19 +1189,19 @@ void RaopSender::onPairingResponse_(int code,
             return;
         }
         // Any other pairing failure at the HTTP layer. 403 on a HomeKit
-        // receiver is almost always an ACCESS-CONTROL rejection — the
+        // receiver is almost always an ACCESS-CONTROL rejection, the
         // device only accepts senders it's configured to allow.
         if (code == 403) {
             // 403 = the receiver's access-control policy refused us (not a
             // protocol error). On a Mac: System Settings → General → AirDrop &
             // Handoff → AirPlay Receiver → "Allow AirPlay for: Everyone" AND
             // turn Require Password OFF. Note that a macOS AirPlay Receiver may
-            // only accept Apple devices regardless of this setting — an Apple TV
+            // only accept Apple devices regardless of this setting, an Apple TV
             // or HomePod is the reliable target. On an Apple TV: Settings →
             // AirPlay & HomeKit → Allow Access → "Anyone on the Same Network".
             fail_(tr("%1 refused pairing. On a Mac, set System Settings → "
                      "AirDrop & Handoff → AirPlay Receiver → \"Allow AirPlay "
-                     "for: Everyone\" and turn off Require Password — though a "
+                     "for: Everyone\" and turn off Require Password, though a "
                      "Mac may only accept Apple devices. An Apple TV or HomePod "
                      "(Allow Access → \"Anyone on the Same Network\") is the "
                      "reliable target.").arg(name_));
@@ -1220,9 +1220,9 @@ void RaopSender::onPairingResponse_(int code,
     // code; transient + pair-verify go straight to their first message.
     switch (pairStage_) {
     case PairStage::PinStart:
-        // /pair-pin-start acknowledged — the device's 4-digit code is now on
+        // /pair-pin-start acknowledged, the device's 4-digit code is now on
         // screen. Begin the SRP handshake (M1, no transient flag).
-        Log::info("Cast: AirPlay /pair-pin-start OK — Apple TV should now "
+        Log::info("Cast: AirPlay /pair-pin-start OK, Apple TV should now "
                   "show its code");
         sendPairSetupM1_();
         break;
@@ -1238,8 +1238,8 @@ void RaopSender::onPairingResponse_(int code,
         break;
     case PairStage::Ap2Info:
         // GET /info acknowledged (device-capability plist; we don't need its
-        // contents for realtime audio) — proceed to the session SETUP.
-        Log::info("Cast: AirPlay 2 GET /info ok — starting SETUP");
+        // contents for realtime audio), proceed to the session SETUP.
+        Log::info("Cast: AirPlay 2 GET /info ok, starting SETUP");
         sendAp2SetupSession_();
         break;
     case PairStage::Ap2Session: handleAp2SetupSession_(body); break;
@@ -1256,10 +1256,10 @@ void RaopSender::afterAuthOk_() {
     // run the classic RTSP handshake (audio stays unencrypted).
     digestRetried_ = false;   // reset for the handshake's own auth
     if (airplay2_) {
-        // #90 — pair-verify is done; from here the RTSP control channel is
+        // #90, pair-verify is done; from here the RTSP control channel is
         // ChaCha20-Poly1305 encrypted (Control-Write/Read keys derived during
         // pair-verify). The very next request (/setup) is already encrypted,
-        // and an Apple TV REQUIRES this — sending /setup plaintext made it drop
+        // and an Apple TV REQUIRES this, sending /setup plaintext made it drop
         // the connection right after pair-verify.
         if (ap2_ && ap2_->controlOut.size() == 32 && ap2_->controlIn.size() == 32) {
             controlEncrypted_ = true;
@@ -1296,7 +1296,7 @@ void RaopSender::sendAuthSetup_() {
 // ── HAP pair-setup (SRP) ──────────────────────────────────────────────
 
 void RaopSender::sendPairPinStart_() {
-    // v0.66.x — the on-screen-PIN trigger. A tvOS Apple TV only RENDERS its
+    // v0.66.x, the on-screen-PIN trigger. A tvOS Apple TV only RENDERS its
     // 4-digit code when it receives POST /pair-pin-start; the subsequent
     // /pair-setup M1 just returns SRP material (salt+B) without displaying
     // anything. owntone (payload_make_pin_start) and pyatv (start_pairing)
@@ -1305,7 +1305,7 @@ void RaopSender::sendPairPinStart_() {
     // (HapPin) path. Empty body. On the 200 reply we proceed to M1.
     //
     // NOTE: an earlier refactor removed this, blaming it for the MacBook's
-    // HTTP 403 — but that 403 is a SEPARATE access gate (the Mac receiver in
+    // HTTP 403, but that 403 is a SEPARATE access gate (the Mac receiver in
     // "Current User" mode refusing pairing wholesale), not /pair-pin-start.
     pairStage_ = PairStage::PinStart;
     httpPost_(QByteArrayLiteral("/pair-pin-start"),
@@ -1368,11 +1368,11 @@ void RaopSender::handlePairSetupM2_(const QByteArray& body) {
         // Transient: no user interaction, fixed PIN 3939.
         sendPairSetupM3_(QStringLiteral("3939"));
     } else {
-        // Normal HAP PIN — ask the UI for the on-screen code.
+        // Normal HAP PIN, ask the UI for the on-screen code.
         waitingForPin_ = true;
         timeout_.stop();
         pinTimeout_.start();   // bounded user-driven wait (see ctor)
-        Log::info("Cast: AirPlay HAP PIN pairing — waiting for code");
+        Log::info("Cast: AirPlay HAP PIN pairing, waiting for code");
         emit pinRequired(name_);
     }
 }
@@ -1405,7 +1405,7 @@ void RaopSender::handlePairSetupM4_(const QByteArray& body) {
         afterAuthOk_();
         return;
     }
-    // Normal HAP pairing — exchange long-term keys (M5/M6).
+    // Normal HAP pairing, exchange long-term keys (M5/M6).
     sendPairSetupM5_();
 }
 
@@ -1436,7 +1436,7 @@ void RaopSender::sendPairSetupM5_() {
         {tlv::PublicKey, ap2_->ltPub},
         {tlv::Signature, sig},
     };
-    // HAP setup messages use a STRING-label nonce ("PS-Msg05") — the 8
+    // HAP setup messages use a STRING-label nonce ("PS-Msg05"), the 8
     // ASCII bytes sit in the low 8 of the 12-byte IETF nonce (the 4-byte
     // zero pad is added by chacha20Poly1305Encrypt).
     const Bytes nonceM5 = toBytes(QByteArrayLiteral("PS-Msg05"));
@@ -1447,7 +1447,7 @@ void RaopSender::sendPairSetupM5_() {
         {tlv::EncryptedData, enc},
     };
     // Stash the M5 session key so M6 can decrypt the reply. (pairVerifyKey_
-    // is a dedicated scratch field — not the audio key.)
+    // is a dedicated scratch field, not the audio key.)
     pairSetupSessionKey_ = sessionKey;
     pairStage_ = PairStage::SetupM6;
     httpPost_(QByteArrayLiteral("/pair-setup"),
@@ -1484,7 +1484,7 @@ void RaopSender::handlePairSetupM6_(const QByteArray& body) {
     o.insert("clientId", QString::fromUtf8(toQB(ap2_->pairingId)));
     const QString creds = QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact));
     emit credentialsObtained(deviceId_, creds);
-    Log::info("Cast: AirPlay HAP pairing complete — credentials stored");
+    Log::info("Cast: AirPlay HAP pairing complete, credentials stored");
 
     // Now run pair-verify to derive the live session keys.
     pairSetupSessionKey_.clear();
@@ -1565,7 +1565,7 @@ void RaopSender::handlePairVerifyM2_(const QByteArray& body) {
     ap2_->controlIn  = hkdfSha512("Control-Salt",
                                   "Control-Read-Encryption-Key",
                                   ap2_->sharedSecret, 32);
-    // #90/#109 — event-channel keys (pyatv/owntone "Events-Salt"). The event
+    // #90/#109, event-channel keys (pyatv/owntone "Events-Salt"). The event
     // channel is a REVERSE connection, so the read/write keys are SWAPPED vs the
     // control channel: we DECRYPT the receiver's pushed events with the
     // "Events-Write" key and ENCRYPT our 200-OK responses with "Events-Read".
@@ -1615,7 +1615,7 @@ void RaopSender::sendAp2Rtsp_(const QByteArray& method, const QByteArray& uri,
 }
 
 void RaopSender::sendAp2Info_() {
-    // GET /info (path GET on the RTSP control channel) — required before SETUP.
+    // GET /info (path GET on the RTSP control channel), required before SETUP.
     pairStage_ = PairStage::Ap2Info;
     sendAp2Rtsp_(QByteArrayLiteral("GET"), QByteArrayLiteral("/info"), {}, {});
 }
@@ -1644,9 +1644,9 @@ void RaopSender::sendAp2SetupSession_() {
     sendAp2Rtsp_(QByteArrayLiteral("SETUP"), rtspUri_(),
                  QByteArrayLiteral("application/x-apple-binary-plist"),
                  toQB(body));
-    // #150 diag — confirm the session SETUP went out; the MacBook stall shows
+    // #150 diag, confirm the session SETUP went out; the MacBook stall shows
     // this line then silence (no "session SETUP ok", no control rx).
-    Log::info("Cast: AirPlay 2 session SETUP sent ({} plist bytes) — awaiting reply",
+    Log::info("Cast: AirPlay 2 session SETUP sent ({} plist bytes), awaiting reply",
               int(body.size()));
 }
 
@@ -1657,8 +1657,8 @@ void RaopSender::handleAp2SetupSession_(const QByteArray& body) {
         if (auto* ep = root->find("eventPort"))
             ap2_->eventPort = quint16(ep->asInt());
     }
-    Log::info("Cast: AirPlay 2 session SETUP ok — eventPort={}", ap2_->eventPort);
-    // #90 — a modern Apple TV needs the event-channel TCP connection OPEN and
+    Log::info("Cast: AirPlay 2 session SETUP ok, eventPort={}", ap2_->eventPort);
+    // #90, a modern Apple TV needs the event-channel TCP connection OPEN and
     // RECORD accepted BEFORE the stream SETUP. Open the event channel, then
     // send RECORD; the stream SETUP follows on the RECORD reply.
     if (ap2_->eventPort != 0) {
@@ -1673,7 +1673,7 @@ void RaopSender::handleAp2SetupSession_(const QByteArray& body) {
 void RaopSender::sendAp2Record_() {
     // owntone START_PLAYBACK order: RECORD (empty body, standard headers) comes
     // right after session SETUP, BEFORE the stream SETUP. The receiver enters
-    // its RECORD state — required before it will render the realtime stream.
+    // its RECORD state, required before it will render the realtime stream.
     pairStage_ = PairStage::Ap2Record;
     sendAp2Rtsp_(QByteArrayLiteral("RECORD"), rtspUri_(), {}, {});
 }
@@ -1685,20 +1685,20 @@ void RaopSender::sendAp2SetupStream_() {
     // session->shared_secret is both the `shk` plist value AND the cipher key,
     // with NO HKDF). #90: a modern Apple TV derives the audio key from the
     // shared secret, so encrypting with the derived Control-Write key produced
-    // garbage (noise) on decode — the raw secret is the correct key.
+    // garbage (noise) on decode, the raw secret is the correct key.
     //
-    // #150 — the secret's LENGTH differs by pairing path:
+    // #150, the secret's LENGTH differs by pairing path:
     //   • pair-verify (Apple TV, HAP PIN, sf=0x644): X25519 ECDH = 32 bytes.
     //   • HAP transient (macOS/MacBook, sf=0x4): SRP session key K = SHA-512(S)
     //     = 64 bytes (transient stops at pair-setup M4, no pair-verify).
     // owntone airplay.c AIRPLAY_AUDIO_KEY_LEN: "for transient pairing the
     // key_len will be 64 bytes, but only 32 are used for audio payload
-    // encryption" — chacha_open() takes the FIRST 32, and `shk` carries the
+    // encryption", chacha_open() takes the FIRST 32, and `shk` carries the
     // same 32. Passing all 64 made chacha20Poly1305Encrypt throw
     // ("chacha key size") on every packet → zero audio sent → the MacBook
     // dropped the (otherwise healthy) session after its ~30 s no-audio
     // timeout. The control/event keys stay HKDF-SHA512 over the FULL K
-    // (size-independent — which is why pairing + cover art already worked).
+    // (size-independent, which is why pairing + cover art already worked).
     // Clamp the copy, not sharedSecret_ (the HKDF keys are already derived).
     ap2_->audioKey = ap2_->sharedSecret;
     if (ap2_->audioKey.size() > 32) ap2_->audioKey.resize(32);  // first 32 B
@@ -1706,7 +1706,7 @@ void RaopSender::sendAp2SetupStream_() {
     ap2_->encryptAudio = true;
 
     Dict stream;
-    // #90 — the realtime stream (type 0x60) is HARDCODED to ALAC on the
+    // #90, the realtime stream (type 0x60) is HARDCODED to ALAC on the
     // receiver (shairport-sync rtsp.c: type 96 → ast_apple_lossless, ct is
     // ignored). We therefore ALAC-encode each packet (see encodeAlacFrame_).
     stream.emplace_back("audioFormat", Value::integer(0x40000));  // ALAC/44100/16/2
@@ -1756,9 +1756,9 @@ void RaopSender::handleAp2SetupStream_(const QByteArray& body) {
     // sense; reuse the data path for sync if the receiver didn't give one.
     if (controlPort_ == 0) controlPort_ = serverPort_;
     timingPort_ = serverPort_;   // NTP timing rides the same host
-    Log::info("Cast: AirPlay 2 stream SETUP ok — dataPort={} controlPort={}",
+    Log::info("Cast: AirPlay 2 stream SETUP ok, dataPort={} controlPort={}",
               serverPort_, controlPort_);
-    // AP2 realtime does NOT use RTSP RECORD — the Apple TV never replies to it
+    // AP2 realtime does NOT use RTSP RECORD, the Apple TV never replies to it
     // (it anchors the timeline via the SYNC/NTP channel). Go straight to
     // streaming; startStreaming_ pushes the initial volume + sync + RTP.
     startStreaming_();
@@ -1788,7 +1788,7 @@ QByteArray RaopSender::encryptAudioPayload_(const QByteArray& rtpHeader,
 void RaopSender::onPacerTick_() {
     // Token bucket: frames-on-the-wire must track wall clock at
     // 44100/s (pyatv paces identically off monotonic time). A GUI
-    // stall is repaid in bursts, capped so we never flood the LAN —
+    // stall is repaid in bursts, capped so we never flood the LAN,
     // the receiver buffers ~2 s, so a capped catch-up is inaudible.
     const quint64 target =
         quint64(clock_.nsecsElapsed()) * kRaopRate / 1000000000ULL;
@@ -1800,7 +1800,7 @@ void RaopSender::onPacerTick_() {
     }
 }
 
-// #90 — encode one frame of interleaved s16 stereo PCM as an UNCOMPRESSED ALAC
+// #90, encode one frame of interleaved s16 stereo PCM as an UNCOMPRESSED ALAC
 // frame, which is what a modern Apple TV's realtime path (hardcoded ALAC,
 // frameLength 352 / 16-bit / 2ch) decodes. The ALAC bitstream is read MSB-first
 // by the receiver (shairport-sync alac.c). Per-frame element layout:
@@ -1836,7 +1836,7 @@ void RaopSender::sendAudioPacket_() {
     int16_t frames[kFramesPerPacket * kChannels];
     fillFrames_(frames, kFramesPerPacket);
 
-    // 12-byte RTP header (big-endian — shared by AP1 + AP2).
+    // 12-byte RTP header (big-endian, shared by AP1 + AP2).
     QByteArray header;
     header.reserve(12);
     b8(header, 0x80);
@@ -1861,7 +1861,7 @@ void RaopSender::sendAudioPacket_() {
         }
     }
 
-    // v0.66.x Phase 3 — AP2 receivers get the payload ChaCha20-Poly1305
+    // v0.66.x Phase 3, AP2 receivers get the payload ChaCha20-Poly1305
     // encrypted (AAD = header[4..12], trailing 8-byte nonce). AP1 = identity.
     const QByteArray wirePayload = encryptAudioPayload_(header, payload);
 
@@ -1888,7 +1888,7 @@ size_t RaopSender::fillFrames_(int16_t* dst, size_t want) {
 
     if (inputRate_ == kRaopRate) {
         // Pass-through: pop what's there, pad the rest with silence
-        // (player paused / ring priming — the timeline must keep
+        // (player paused / ring priming, the timeline must keep
         // running or the receiver declares the stream dead).
         const size_t availFrames = ring_->availableRead() / kChannels;
         const size_t take = std::min(availFrames, want);
@@ -1923,7 +1923,7 @@ size_t RaopSender::fillFrames_(int16_t* dst, size_t want) {
     size_t produced = 0;
     while (produced < want) {
         const size_t i0 = size_t(srcPhase_);
-        if (i0 + 1 >= bufFrames) break;   // need i0 and i0+1 — starved
+        if (i0 + 1 >= bufFrames) break;   // need i0 and i0+1, starved
         const double frac = srcPhase_ - double(i0);
         const int16_t* a = inBuf_.data() + i0 * kChannels;
         const int16_t* b = a + kChannels;
@@ -1938,8 +1938,8 @@ size_t RaopSender::fillFrames_(int16_t* dst, size_t want) {
         std::memset(dst + produced * kChannels, 0,
                     (want - produced) * kChannels * sizeof(int16_t));
 
-    // Compact: drop fully consumed frames (keep the one at floor(phase)
-    // — the lerp's left neighbour) and rebase the phase.
+    // Compact: drop fully consumed frames (keep the one at floor(phase),
+    // the lerp's left neighbour) and rebase the phase.
     const size_t keepFrom = size_t(srcPhase_);
     if (keepFrom > 0) {
         const size_t drop = std::min(keepFrom, bufFrames);
