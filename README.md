@@ -201,7 +201,4 @@ certificate, or any extracted firmware; it's a clean-room client of a network
 protocol, for interoperability with **your own** devices. use it on hardware you
 own and are allowed to use.
 
----
 
-*greetz to everyone who ever watched a socket close after one millisecond and
-refused to let it win.*
