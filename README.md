@@ -123,7 +123,14 @@ and "macbook plays".
 src/
   airplay_crypto.h / .cpp   the qt-free crypto + wire-format core
   raop_sender.h   / .cpp    the AP2 sender state machine (the recipe, in code)
+  itransport.h              the networking/timer seam the sender talks to
+  poll_transport.h / .cpp   the default, Qt-free poll()/select() adapter
+  qt_transport.h  / .cpp    the optional Qt adapter (off by default)
+  raop_device_auth.h        the receiver Auth enum (was a host header)
+  creds_json.h              the stored-pairing credentials blob (no Qt JSON)
+  logging.h                 the std::function log sink
   ring_buffer.h             the lock-free spsc tap the audio thread feeds
+test/m1_verify.cpp          loopback handshake + transport verification
 third_party/ed25519/        the one primitive mbed tls lacks (zlib, vendored)
 ```
 
@@ -141,14 +148,14 @@ the keep-alive.
 ## status (read me)
 
 this is **lifted, working, and verified** out of **FXChainPlayer**, where it
-casts to a real Apple TV 4K (`AppleTV14,1`) and a MacBook every day. it is
-**not yet a turn-key standalone library**: `raop_sender` currently does its
-networking with **Qt** (`QTcpSocket` / `QUdpSocket` / `QTimer`) and pulls a
-couple of host headers. the **roadmap** (`ROADMAP.md`) is to put the sockets
-behind a small (~5-method) transport interface so the whole thing builds
-Qt-free, plus a `airplay-send <host> <file.wav>` CLI demo. the **crypto core already builds on
-its own**, so that's the part you can use today; the sender is the reference you
-follow.
+casts to a real Apple TV 4K (`AppleTV14,1`) and a MacBook every day. as of the
+**m1** work (`ROADMAP.md`) `raop_sender` is now **Qt-free**: all sockets + timers
+go through a small transport interface (`src/itransport.h`), with a default
+poll/`select` adapter (`PollTransport`) and an optional Qt one (`QtTransport`).
+the `RaopDeviceInfo::Auth` enum and the credentials JSON are inlined too, so the
+sender builds standalone. what's left to be fully **turn-key** is a bundled mDNS
+browser and the `airplay-send <host> <file.wav>` CLI demo (m2/m3). the **crypto
+core** has always built on its own; now the sender does too.
 
 if you want the polished player it lives in, here:
 

@@ -39,5 +39,52 @@ target_include_directories(airplay_crypto PUBLIC
 target_link_libraries(airplay_crypto PUBLIC mbedcrypto ed25519)
 target_compile_features(airplay_crypto PUBLIC cxx_std_20)
 
-# the sender + a CLI demo land here once the Qt-free transport interface from
-# ROADMAP.md is in. for now, read src/raop_sender.* alongside the README recipe.
+# --- the AirPlay 2 sender + the default Qt-free poll/select transport (m1) ---
+# raop_sender is now plain C++: it drives all networking + timers through the
+# ITransport seam (src/itransport.h) and the bundled PollTransport adapter, so
+# it builds with NO Qt. the crypto + wire-format core (airplay_crypto) links in.
+add_library(raop_sender STATIC
+    src/raop_sender.cpp
+    src/poll_transport.cpp)
+target_include_directories(raop_sender PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(raop_sender PUBLIC airplay_crypto)
+target_compile_features(raop_sender PUBLIC cxx_std_20)
+if(WIN32)
+    target_link_libraries(raop_sender PUBLIC ws2_32)
+endif()
+
+# --- optional thin Qt adapter (OFF by default) ---
+# a host that already runs a Qt event loop (e.g. FXChainPlayer) can hand the
+# sender a QtTransport instead of PollTransport and keep its own event loop.
+# the default standalone build stays zero-Qt; this only pulls in Qt6 when asked.
+option(AIRPLAY_BUILD_QT_ADAPTER "Build the thin Qt ITransport adapter" OFF)
+if(AIRPLAY_BUILD_QT_ADAPTER)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network)
+    add_library(raop_sender_qt STATIC src/qt_transport.cpp)
+    target_link_libraries(raop_sender_qt PUBLIC raop_sender Qt6::Core Qt6::Network)
+    target_compile_features(raop_sender_qt PUBLIC cxx_std_20)
+endif()
+
+# --- verification harness (OFF by default; CI turns it on) ---
+# stands up a loopback "fake receiver" and drives the full AirPlay-1 handshake
+# through PollTransport + RaopSender, then checks audio/sync/timing/retransmit;
+# plus timer-restart, creds byte-compat, and UDP source-reply unit checks.
+# POSIX sockets, so it is gated off Windows.
+option(AIRPLAY_BUILD_TESTS "Build the transport verification harness" OFF)
+if(AIRPLAY_BUILD_TESTS AND NOT WIN32)
+    enable_testing()
+    add_executable(m1_verify test/m1_verify.cpp)
+    target_link_libraries(m1_verify PRIVATE raop_sender)
+    add_test(NAME m1_verify COMMAND m1_verify)
+endif()
+
+# --- the airplay_send CLI demo (ROADMAP m3), OFF by default ---
+# streams a WAV (or a test tone) to a real receiver through raop_sender +
+# PollTransport. the runnable proof on your own couch.
+option(AIRPLAY_BUILD_EXAMPLE "Build the airplay_send CLI demo" OFF)
+if(AIRPLAY_BUILD_EXAMPLE)
+    add_executable(airplay_send example/airplay_send.cpp)
+    target_link_libraries(airplay_send PRIVATE raop_sender)
+    find_package(Threads REQUIRED)
+    target_link_libraries(airplay_send PRIVATE Threads::Threads)
+endif()
