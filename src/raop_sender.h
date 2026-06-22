@@ -113,6 +113,9 @@ public:
                        const QByteArray& cover = {},
                        const QByteArray& coverMime = {});
 
+    // Sender name the receiver shows (PIN dialog + AirPlay source); empty = default.
+    void setClientName(const QString& name);
+
 signals:
     void launched(bool ok, const QString& error);  // RECORD accepted / failed
     void closed();                                  // session ended
@@ -286,6 +289,7 @@ private:
 
     QString    npTitle_, npArtist_, npAlbum_;   // now-playing metadata
     QByteArray npCover_, npCoverMime_;          // cover art bytes + MIME
+    QByteArray clientName_ = QByteArrayLiteral("airplay2-sender-cpp");  // X-Apple-Client-Name + AP2 name
 
     // ── v0.66.x Phase 2/3, auth + AP2 state ─────────────────────────
     // The pairing sub-state machine: which reply the next HTTP POST's

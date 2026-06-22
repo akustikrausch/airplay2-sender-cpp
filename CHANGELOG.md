@@ -1,6 +1,9 @@
 # changelog
 
 ## unreleased
+- `setClientName()`: the name the receiver shows (Apple TV pairing dialog + the
+  AP2 source) is no longer hardcoded to "FXChainPlayer", defaults to
+  "airplay2-sender-cpp".
 - provenance made precise: the crypto/wire-format core is clean-room; the
   RAOP/AP2 transport in `raop_sender.cpp` is credited as a C++ port of pyatv
   (MIT). pyatv's MIT notice now ships in `licenses/THIRD-PARTY-NOTICES.txt`.
