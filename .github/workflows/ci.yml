@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-verify:
-    name: build + verify the Qt-free sender
+  linux:
+    name: build + verify (Linux, gcc)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,16 +17,42 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build python3
 
       - name: configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAIRPLAY_BUILD_TESTS=ON
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAIRPLAY_BUILD_TESTS=ON -DAIRPLAY_BUILD_EXAMPLE=ON
 
-      # build the test harness target, which pulls in raop_sender + the poll
-      # transport + airplay_crypto + mbedcrypto + ed25519. targeted on purpose:
-      # a bare `--build` would also compile Mbed TLS's TLS/X509 libs (unused
-      # here) whose -Werror build breaks on some newer compilers.
+      # targeted build: a bare --build would also compile Mbed TLS's TLS/X509
+      # libs (unused here) whose -Werror build breaks on some newer compilers.
       - name: build
-        run: cmake --build build --target m1_verify --parallel
+        run: cmake --build build --target raop_sender airplay_send m1_verify transport_loopback --parallel
 
-      # loopback AirPlay-1 handshake through the poll transport, plus the
-      # timer / creds / UDP-source-reply unit checks.
+      - name: verify
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: build + verify (Windows, mingw)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+
+      - name: configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAIRPLAY_BUILD_TESTS=ON -DAIRPLAY_BUILD_EXAMPLE=ON
+
+      # builds the Winsock poll transport + the example + the cross-platform
+      # loopback test (m1_verify is POSIX-only, so it is not built here).
+      - name: build
+        run: cmake --build build --target raop_sender airplay_send transport_loopback --parallel
+
       - name: verify
         run: ctest --test-dir build --output-on-failure
