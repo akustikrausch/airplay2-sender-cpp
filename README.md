@@ -117,6 +117,18 @@ encryption."* the pair-verify secret is already 32, so the clamp is a no-op ther
 that one line is the difference between "macbook shows the cover and is silent"
 and "macbook plays".
 
+### the windows gotcha (firewall + UDP)
+
+the receiver doesn't only reply on the TCP control channel, it also sends
+*unsolicited inbound UDP* to the sender's timing/control ports (the NTP-style
+clock sync that AP2 SETUP waits on). windows firewall drops unsolicited inbound
+UDP by default, so the receiver never clock-syncs, the handshake stalls and times
+out (or the receiver bounces SETUP with a 400), and audio never starts. allow
+inbound UDP for the sender (a per-program rule is enough) and it streams. a NAT'd
+VM fails the same way, the receiver can't reach the sender's UDP ports at all, so
+use bridged networking. verified live: a bridged windows build with an inbound-UDP
+rule streams AP2 to a real Apple TV 4K.
+
 ## what's in the box
 
 ```
@@ -130,7 +142,8 @@ src/
   creds_json.h              the stored-pairing credentials blob (no Qt JSON)
   logging.h                 the std::function log sink
   ring_buffer.h             the lock-free spsc tap the audio thread feeds
-test/m1_verify.cpp          loopback handshake + transport verification
+test/m1_verify.cpp          loopback AirPlay-1 handshake + transport checks
+test/transport_loopback.cpp AP2-shaped transport test (also runs on windows)
 third_party/ed25519/        the one primitive mbed tls lacks (zlib, vendored)
 ```
 
