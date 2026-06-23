@@ -159,8 +159,14 @@ int main(int argc, char** argv) {
         },
         [&](bool ok, std::string err) {
             if (ok) std::printf(">> streaming (ctrl-c to stop)\n");
-            else  { std::fprintf(stderr, ">> launch failed: %s\n", err.c_str());
-                    done = true; transport.stopLoop(); }
+            else {
+                std::fprintf(stderr, ">> launch failed: %s\n", err.c_str());
+                // a SETUP/timing stall is usually the receiver unable to reach our UDP ports
+                std::fprintf(stderr,
+                    ">> hint: the receiver must reach this sender's UDP ports. on Windows allow\n"
+                    ">>       inbound UDP through the firewall; in a VM use bridged, not NAT.\n");
+                done = true; transport.stopLoop();
+            }
         },
         [&]() { std::printf(">> session closed\n"); done = true; transport.stopLoop(); },
         [&](std::string dev) {
