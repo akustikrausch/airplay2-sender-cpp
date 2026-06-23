@@ -7,7 +7,7 @@
 // receiver" and driving the full AirPlay-1 handshake through them, then
 // checking that audio / sync flow and that the UDP timing + retransmit
 // REPLIES go back to the datagram source (the #1 regression risk). also
-// unit-checks the timer restart semantics, the creds JSON byte-compat, and
+// unit-checks the timer restart semantics, the creds JSON round-trip, and
 // the on-wire RTP header.
 
 #include "raop_sender.h"
@@ -29,7 +29,9 @@
 using namespace fxchain;
 
 static int g_failures = 0;
+static int g_checks = 0;
 static void check(bool ok, const char* what) {
+    ++g_checks;
     std::printf("[%s] %s\n", ok ? "PASS" : "FAIL", what);
     if (!ok) ++g_failures;
 }
@@ -255,7 +257,7 @@ static void testCreds() {
     const std::string j = credsToJson(c);
     check(j == "{\"ltsk\":\"010203\",\"ltpk\":\"abcd\",\"atvId\":\"4142\","
                "\"clientId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\"}",
-          "creds JSON byte-compatible with the Qt QJsonObject layout");
+          "creds JSON writer output is stable (compact, declaration order)");
     auto back = credsFromJson(j);
     check(back && back->ltsk == c.ltsk && back->ltpk == c.ltpk &&
           back->atvId == c.atvId && back->clientId == c.clientId,
@@ -381,8 +383,8 @@ int main() {
     testBadHostFails();
     testDeferredConnectFail();
     testFullHandshake();
-    std::printf("\n%s (%d failure%s)\n",
-                g_failures == 0 ? "ALL PASS" : "FAILURES", g_failures,
-                g_failures == 1 ? "" : "s");
+    std::printf("\n%s (%d/%d checks passed)\n",
+                g_failures == 0 ? "ALL PASS" : "FAILURES",
+                g_checks - g_failures, g_checks);
     return g_failures == 0 ? 0 : 1;
 }

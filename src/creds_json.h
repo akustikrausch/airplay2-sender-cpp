@@ -10,8 +10,9 @@
 //   {"ltsk":"<hex>","ltpk":"<hex>","atvId":"<hex>","clientId":"<uuid string>"}
 //
 // ltsk/ltpk/atvId are lowercase-hex byte strings; clientId is the pairing
-// UUID stored RAW (not hex). the writer emits the same compact, same-order
-// JSON QJsonObject::insert produced. the reader scans by key so a
+// UUID stored RAW (not hex). compact JSON in declaration order: field-compatible
+// with old Qt blobs but NOT byte-identical (QJsonObject sorted keys
+// alphabetically). the reader scans by key, so order doesn't matter and a
 // pretty-printed or reordered blob still loads.
 
 #include <cstdint>

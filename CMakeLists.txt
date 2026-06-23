@@ -16,7 +16,7 @@ set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(ENABLE_TESTING  OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(mbedtls
     GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
-    GIT_TAG        v3.6.0
+    GIT_TAG        2ca6c285a0dd3f33982dd57299012dacab1ff206   # v3.6.0, pinned by commit sha
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(mbedtls)
 
