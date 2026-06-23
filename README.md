@@ -201,4 +201,9 @@ certificate, or any extracted firmware; it's a clean-room client of a network
 protocol, for interoperability with **your own** devices. use it on hardware you
 own and are allowed to use.
 
+this is interoperability work in the legal sense: it relies on the
+decompilation / interoperability right under **article 6 of eu directive
+2009/24/ec** (the *software directive*), reimplements the protocol clean-room,
+and ships none of apple's code, keys, or certificates.
+
 

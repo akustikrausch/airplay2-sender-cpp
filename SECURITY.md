@@ -29,3 +29,10 @@ can, a reproduction. you'll get an acknowledgement; fixes land on `main` and are
 credited in `CHANGELOG.md` unless you'd rather stay anonymous.
 
 for non-exploitable hardening ideas, a normal issue or PR is perfect.
+
+### a flaw in apple's implementation, not this client?
+
+if your finding is a vulnerability in **apple's** side of the protocol rather
+than in this client, please report it responsibly to apple at
+**https://security.apple.com** and not here. this is interoperability research;
+it has no interest in harming apple or its users.
