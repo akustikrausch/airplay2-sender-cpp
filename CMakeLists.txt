@@ -71,11 +71,18 @@ endif()
 # plus timer-restart, creds byte-compat, and UDP source-reply unit checks.
 # POSIX sockets, so it is gated off Windows.
 option(AIRPLAY_BUILD_TESTS "Build the transport verification harness" OFF)
-if(AIRPLAY_BUILD_TESTS AND NOT WIN32)
+if(AIRPLAY_BUILD_TESTS)
     enable_testing()
-    add_executable(m1_verify test/m1_verify.cpp)
-    target_link_libraries(m1_verify PRIVATE raop_sender)
-    add_test(NAME m1_verify COMMAND m1_verify)
+    # cross-platform AP2-shaped loopback test; runs in the Windows CI too.
+    add_executable(transport_loopback test/transport_loopback.cpp)
+    target_link_libraries(transport_loopback PRIVATE raop_sender)
+    add_test(NAME transport_loopback COMMAND transport_loopback)
+    # m1_verify's fake receiver uses POSIX-only socket APIs.
+    if(NOT WIN32)
+        add_executable(m1_verify test/m1_verify.cpp)
+        target_link_libraries(m1_verify PRIVATE raop_sender)
+        add_test(NAME m1_verify COMMAND m1_verify)
+    endif()
 endif()
 
 # --- the airplay_send CLI demo (ROADMAP m3), OFF by default ---
