@@ -122,8 +122,17 @@ and "macbook plays".
 ```
 src/
   airplay_crypto.h / .cpp   the qt-free crypto + wire-format core
-  raop_sender.h   / .cpp    the AP2 sender state machine (the recipe, in code)
+  raop_sender.h   / .cpp    the AP2 sender state machine (the recipe, in code), sans-i/o
+  raop_io.h                 the six-method seam the sender sends through
+  raop_loop.h     / .cpp    the bundled poll()/WSAPoll() host: sockets + the run loop
+  raop_qt_host.h  / .cpp    optional: the same host on Qt sockets (off by default)
+  raop_auth.h               how a receiver wants to be authenticated (the Auth enum)
+  raop_creds.h              the stored-pairing credentials blob (json, no qt)
+  raop_log.h                the log sink + a tiny "{}" formatter
   ring_buffer.h             the lock-free spsc tap the audio thread feeds
+example/airplay_send.cpp    the cli demo: pair, set up, stream a wav
+test/core_tests.cpp         the protocol core against an in-process fake receiver
+test/loop_tests.cpp         the poll host against a real loopback receiver
 third_party/ed25519/        the one primitive mbed tls lacks (zlib, vendored)
 ```
 
@@ -136,19 +145,88 @@ the encrypted channels need, and nothing else. backed by **Mbed TLS 3.6**
 
 **`raop_sender`** is the state machine that *is* the recipe above: pairing,
 the encrypted control channel, the event channel, the ALAC realtime encoder,
-the keep-alive.
+the keep-alive. it is **sans-i/o**: it owns no socket, no timer and no thread.
+it sends through `RaopIo` (six methods: tcp connect / send / close, udp bind /
+send / close) and the host pushes back in what happened (`onTcpData`,
+`onUdpDatagram`, `tick`). that is what makes it a drop-in: `RaopLoop` is the
+bundled portable host, `RaopQtHost` the optional one for an app that already
+runs Qt, and a test can drive the whole handshake with a fake host and no
+network at all.
+
+## build + run
+
+you need cmake 3.16+ and a c++20 compiler: gcc 10+, clang 12+, apple clang 13+
+(xcode 13), msvc 2019 16.10+ / 2022. mbed tls is fetched at configure time
+(network needed once); ed25519 is vendored. nothing else.
+
+```
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+```
+
+that builds `airplay_crypto`, `raop_sender` (core + host), the `airplay_send`
+demo and the two test binaries. ci runs exactly this on linux (gcc, clang,
+asan+ubsan), macos and windows (msvc).
+
+### the demo
+
+```
+./build/airplay_send <receiver-ip> [file.wav] [--atv | --mac | --ap1] [--name TEXT] [--volume 0..100] [--strict]
+```
+
+- `--atv` (default): apple tv, hap pairing with the on-screen pin. the pin is
+  asked once; the long-term credentials are saved next to the binary
+  (`airplay_creds_<ip>.json`) and later runs skip it.
+- `--mac` / `--homepod`: hap transient pairing, no pin.
+- `--ap1`: airplay 1, plain rtsp (shairport-sync, apple tv 3, raop speakers).
+- no file: a 440 Hz test tone. a wav needs 16-bit pcm, mono or stereo, any rate.
+- ctrl-c sends TEARDOWN and exits.
+
+the receiver's ip comes from mdns (`dns-sd -B _raop._tcp` on a mac,
+`avahi-browse _raop._tcp` on linux, or the receiver's network settings); a
+bundled browser is the one open roadmap item.
+
+### the windows / vm gotcha (firewall + udp)
+
+the receiver does not only answer on the tcp control channel: it sends
+*unsolicited inbound udp* to the sender's timing and control ports (the
+ntp-style clock sync that the ap2 session SETUP waits for, later the
+retransmit requests). windows firewall drops unsolicited inbound udp by
+default, so the handshake stalls at the session SETUP and times out. allow
+inbound udp for the program (a per-program rule is enough). a nat'd vm fails
+the same way; use bridged networking. `airplay_send` prints this hint on a
+handshake timeout. (diagnosed on a windows vm by @rursache in #1, thanks.)
+
+### using the library
+
+```cpp
+RaopLoop   loop;                       // or RaopQtHost inside a Qt app
+RaopSender sender(loop, events, log);  // events: launched / closed / pinRequired / credentialsObtained
+sender.attachRing(&ring);              // your audio thread feeds the ring (16-bit stereo, any rate)
+sender.setInputFormat(48000);
+sender.setIdentity({"my player", "AA:BB:CC:DD:EE:FF", "iPhone14,3"});
+sender.setAuth(RaopDeviceInfo::Auth::HapPin, /*airplay2=*/true, deviceId, storedCredsJson, "");
+sender.start(ip, 7000, "Living Room");
+loop.run(sender);                      // until loop.requestStop(); sender.stop() sends TEARDOWN
+```
 
 ## status (read me)
 
 this is **lifted, working, and verified** out of **FXChainPlayer**, where it
-casts to a real Apple TV 4K (`AppleTV14,1`) and a MacBook every day. it is
-**not yet a turn-key standalone library**: `raop_sender` currently does its
-networking with **Qt** (`QTcpSocket` / `QUdpSocket` / `QTimer`) and pulls a
-couple of host headers. the **roadmap** (`ROADMAP.md`) is to put the sockets
-behind a small (~5-method) transport interface so the whole thing builds
-Qt-free, plus a `airplay-send <host> <file.wav>` CLI demo. the **crypto core already builds on
-its own**, so that's the part you can use today; the sender is the reference you
-follow.
+casts to a real Apple TV 4K (`AppleTV14,1`) and a MacBook every day. roadmap
+**m1..m3 have landed**: the sender is a **standalone, Qt-free library**. the
+state machine is sans-i/o, the bundled `RaopLoop` drives it on linux, macos and
+windows, `airplay_send` is the runnable proof, and the test suite walks the
+complete ap1 and ap2 handshakes (pair-setup, pair-verify, the encrypted control
+channel, the event channel, encrypted alac audio) against an in-process fake
+receiver, byte for byte.
+
+honest caveat: the wire bytes are the verified Qt build's and the tests pin
+them, but the Qt-free build itself has not had its fresh listen against the
+apple tv / macbook yet. that is the first item in `ROADMAP.md`. still open
+after that: a bundled mdns browser (you pass the receiver's ip today) and
+fail-closed receiver auth by default (available as an option, see security).
 
 if you want the polished player it lives in, here:
 
@@ -166,9 +244,11 @@ trust boundary, it's a *sender*). the untrusted-input parsers (bplist / TLV8 /
 RTSP / the encrypted event frames) ARE bounds-checked against OOB + alloc-DoS,
 and the AEAD usage is authenticate-before-use with per-channel keys + counters.
 
-bottom line: **use it on a network you trust.** fail-closed receiver auth is a
-known, scoped TODO (see `ROADMAP.md` / `SECURITY.md`), a good first PR. report
-anything via `SECURITY.md`.
+bottom line: **use it on a network you trust.** since m1 the checks can fail
+closed: `RaopSender::setStrictReceiverAuth(true)` (`airplay_send --strict`)
+aborts the session on a wrong or missing proof / signature. it is opt-in until
+it has been confirmed against real receivers; making it the default is on the
+roadmap. report anything via `SECURITY.md`.
 
 ## license
 

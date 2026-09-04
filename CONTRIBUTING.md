@@ -1,41 +1,55 @@
 # contributing
 
-prs and issues welcome. this is a small, focused project, the fastest way in is
-to read the README recipe + `ROADMAP.md`, then pick the thing that unblocks the
-most: **m1, the Qt-free transport interface.**
+## contribution policy (read this first)
 
-## the one rule that actually matters: stay clean-room
+this project is written and maintained by one person on purpose, and it does
+**not merge outside code**, the same stance sqlite takes. the reason is the
+license story: this is a clean-room / ported reimplementation of a
+reverse-engineered protocol, and that story is easiest to keep straight when
+every line in `src/` has one known origin. a pull request will be closed with a
+thank-you; where it carries a finding, the finding gets implemented here and
+credited in `CHANGELOG.md`.
+
+what IS wanted, and what actually moves the project:
+
+- **bug reports and protocol findings** as issues: receiver model + os, the
+  `sf=` feature flag from its mdns txt record, the symptom ("refused at SETUP",
+  "connects but silent", "drops at ~30 s"), and the handshake log. that is
+  usually the whole answer.
+- **wire observations** from receivers the maintainer does not own (homepod
+  mini, older apple tvs, third-party airplay 2 speakers).
+- **hardware reports** for the qt-free build: `airplay_send` against your
+  receiver, success or failure, with the log.
+
+if you want to build on the code, fork it. it is Apache-2.0 and the whole point
+of the license choice is that you can ship it.
+
+## the rule for the code itself: stay clean-room
 
 this project reconstructs a reverse-engineered protocol. its license story only
 holds if we are careful about where code comes from:
 
 - the **crypto/wire-format core** (`src/airplay_crypto.*`) is **clean-room**,
   written from public reverse-engineering work read *as documentation only*.
-  **do not paste code into it** from owntone, shairport-sync, pyatv, pair_ap, or
-  any other implementation. byte formats and constants (the facts on the wire)
+  no code from owntone, shairport-sync, pyatv, pair_ap, or any other
+  implementation goes in. byte formats and constants (the facts on the wire)
   are fine; their *source code* is not.
 - the **RAOP transport** (`src/raop_sender.cpp`) is openly credited as a C++
-  **port of pyatv** (MIT) in `licenses/THIRD-PARTY-NOTICES.txt`. if you extend
-  it with logic derived from another project, say so in the PR and bring the
-  matching license + attribution with it. **never** copy from a GPL/AGPL source
-  (owntone's daapd lineage, RAOP-Player, etc.), that would poison the
-  Apache-2.0 license for everyone.
+  **port of pyatv** (MIT) in `licenses/THIRD-PARTY-NOTICES.txt`. logic derived
+  from another project brings the matching license + attribution with it.
+  **never** from a GPL/AGPL source (owntone's daapd lineage, RAOP-Player,
+  etc.), that would poison the Apache-2.0 license for everyone.
 
-when in doubt, describe the protocol behaviour in your own words and implement
-from that. if you're unsure whether something is OK to bring in, open an issue
-first and ask.
+when in doubt, describe the protocol behaviour in your own words (an issue is
+the right place) and it gets implemented from that.
 
 ## practical bits
 
-- build the crypto core: `cmake -B build && cmake --build build --target airplay_crypto`.
+- build + test: `cmake -B build && cmake --build build && ctest --test-dir build`.
+- the protocol tests need no network; the loop tests bind loopback sockets.
 - keep the prose voice as-is (lowercase, plain). no em-dashes in comments/docs.
-- authorship: commits are by their author; no AI-attribution / `Co-Authored-By`
-  trailers, please.
-- a good bug report (see the issue template) names the **receiver model**, the
-  **`sf=` feature flag**, and the **symptom** ("connects but silent", "drops at
-  ~30 s", "refused at SETUP"), that's usually enough to locate it in the recipe.
+- commits carry no AI-attribution / `Co-Authored-By` trailers.
 
 ## security
 
-see `SECURITY.md`. the headline open item (fail-closed receiver authentication)
-is a genuinely good, well-scoped first contribution.
+see `SECURITY.md`.

@@ -6,15 +6,17 @@ this is **interoperability research**, a clean-room/ported client of a
 reverse-engineered network protocol. it is **not** an audited production
 security stack. use it on networks you trust.
 
-### known, scoped limitation: the sender does not authenticate the receiver
+### known, scoped limitation: receiver authentication is opt-in
 
-right now the pair-verify Ed25519 signature check and the SRP M5 proof check
-**log-and-continue** instead of failing closed (`src/raop_sender.cpp`). a
+by default the pair-verify Ed25519 signature check and the SRP proof check
+**log and continue** instead of failing closed (`src/raop_sender.cpp`). a
 same-LAN man-in-the-middle could accept your session and you would stream to it.
 because this is a *sender*, the blast radius is **outbound**: you leak your audio
 and the transient session key, you do not take attacker-controlled data across
-a trust boundary. making these checks fail-closed is a tracked TODO and a good
-first PR (see `ROADMAP.md`).
+a trust boundary. `RaopSender::setStrictReceiverAuth(true)` (`airplay_send --strict`)
+makes them fail closed: a wrong or missing proof / signature aborts the session
+before any setup traffic. it is opt-in until it has been confirmed against real
+receivers; making it the default is on the roadmap (see `ROADMAP.md`).
 
 what IS defended: the untrusted-input parsers (bplist00 / TLV8 / RTSP / the
 encrypted event-channel frames) are bounds-checked against out-of-bounds reads,
@@ -28,7 +30,8 @@ email the maintainer at **akustikrausch@gmail.com** with details and, if you
 can, a reproduction. you'll get an acknowledgement; fixes land on `main` and are
 credited in `CHANGELOG.md` unless you'd rather stay anonymous.
 
-for non-exploitable hardening ideas, a normal issue or PR is perfect.
+for non-exploitable hardening ideas, a normal issue is perfect (see the
+contribution policy in `CONTRIBUTING.md`).
 
 ### a flaw in apple's implementation, not this client?
 
