@@ -175,6 +175,16 @@ struct Value {
     Array       arr;
     Dict        dict;
 
+    // Declared here, defined below the class: Dict holds pair<string, Value>,
+    // and clang with libstdc++ 14 refuses to implicitly define these while
+    // Value is still being completed (the pair needs a complete Value).
+    Value();
+    ~Value();
+    Value(const Value&);
+    Value(Value&&) noexcept;
+    Value& operator=(const Value&);
+    Value& operator=(Value&&) noexcept;
+
     static Value boolean(bool v)            { Value x; x.type=Type::Bool; x.b=v; return x; }
     static Value integer(int64_t v)         { Value x; x.type=Type::Int;  x.i=v; return x; }
     static Value real(double v)             { Value x; x.type=Type::Real; x.r=v; return x; }
@@ -188,6 +198,13 @@ struct Value {
     int64_t      asInt(int64_t def = 0) const { return type==Type::Int ? i : def; }
     std::string  asStr(const std::string& def = {}) const { return type==Type::Str ? s : def; }
 };
+
+inline Value::Value() = default;
+inline Value::~Value() = default;
+inline Value::Value(const Value&) = default;
+inline Value::Value(Value&&) noexcept = default;
+inline Value& Value::operator=(const Value&) = default;
+inline Value& Value::operator=(Value&&) noexcept = default;
 
 Bytes                encode(const Value& root);
 std::optional<Value> decode(const Bytes& data);

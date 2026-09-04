@@ -625,8 +625,12 @@ void RaopSender::onUdpDatagram(RaopUdp s, std::span<const uint8_t> bytes, const 
 void RaopSender::setVolume(double pct) {
     pct = std::clamp(pct, 0.0, 100.0);
     // pyatv pct_to_dbfs: 0 % is the AirPlay mute sentinel -144, the
-    // rest maps linearly onto the -30..0 dBFS attenuation range.
-    const double dbfs = (pct < 0.01) ? -144.0 : (-30.0 + 0.3 * pct);
+    // rest maps linearly onto the -30..0 dBFS attenuation range. Written
+    // as (3*pct - 300)/10 rather than -30 + 0.3*pct so the value is exact
+    // for integer percentages on every target: with 0.3*pct a compiler that
+    // fuses multiply-add (apple clang on arm64) lands a hair below zero at
+    // 100 % and the wire text becomes "-0.000000".
+    const double dbfs = (pct < 0.01) ? -144.0 : ((pct * 3.0 - 300.0) / 10.0);
     pendingVolumeDb_ = dbfs;
     if (state_ == State::Streaming) {
         const std::string body = "volume: " + fixed6(dbfs);
