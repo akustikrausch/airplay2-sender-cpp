@@ -6,19 +6,67 @@ on:
   pull_request:
   workflow_dispatch:
 
+# every job builds the whole tree (crypto core, sans-i/o sender, poll host,
+# airplay_send demo, tests) and runs ctest: the in-process protocol tests plus
+# the loopback socket tests. no Qt anywhere.
 jobs:
-  build-crypto-core:
-    name: build the Qt-free crypto core
+  linux:
+    name: linux (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: install toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang
+      - name: configure
+        run: |
+          if [ "${{ matrix.compiler }}" = "clang" ]; then export CC=clang CXX=clang++; else export CC=gcc CXX=g++; fi
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: build
+        run: cmake --build build --parallel
+      - name: test
+        run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    name: linux (asan + ubsan)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: install toolchain
-        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build python3
-
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
       - name: configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DAIRPLAY_SANITIZE=ON
+      - name: build
+        run: cmake --build build --parallel
+      - name: test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: print_stacktrace=1
 
-      # builds ed25519 (vendored) + mbedcrypto (FetchContent) + airplay_crypto.
-      - name: build airplay_crypto
-        run: cmake --build build --target airplay_crypto --parallel
+  macos:
+    name: macos (apple clang)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: build
+        run: cmake --build build --parallel
+      - name: test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: windows (msvc)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: configure
+        run: cmake -B build
+      - name: build
+        run: cmake --build build --config Release --parallel
+      - name: test
+        run: ctest --test-dir build -C Release --output-on-failure
