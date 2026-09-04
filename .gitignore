@@ -1,5 +1,6 @@
 # build
 /build/
+/build*/
 /_deps/
 CMakeCache.txt
 CMakeFiles/
@@ -30,3 +31,4 @@ Thumbs.db
 *.p12
 pairing*.bin
 *.credentials
+airplay_creds_*.json

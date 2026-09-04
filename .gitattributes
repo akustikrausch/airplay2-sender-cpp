@@ -1,0 +1,2 @@
+# one line ending everywhere, whatever the editor or wsl mount does
+* text=auto eol=lf
