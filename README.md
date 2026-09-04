@@ -185,7 +185,7 @@ asan+ubsan), macos and windows (msvc).
 
 the receiver's ip comes from mdns (`dns-sd -B _raop._tcp` on a mac,
 `avahi-browse _raop._tcp` on linux, or the receiver's network settings); a
-bundled browser is the one open roadmap item.
+bundled browser is still on the roadmap.
 
 ### the windows / vm gotcha (firewall + udp)
 
@@ -235,20 +235,23 @@ if you want the polished player it lives in, here:
 ## security (scope, read me)
 
 this is interoperability research, not an audited production security stack. one
-thing worth owning up front: the **sender does not yet cryptographically
-authenticate the receiver's identity**. the pair-verify signature and SRP proof
-checks currently *log-and-continue* rather than fail-closed, so a same-LAN
+thing worth owning up front: **by default the sender does not cryptographically
+authenticate the receiver**. the pair-verify signature and the SRP proof are
+checked, but a mismatch is logged and the session continues, so a same-LAN
 man-in-the-middle could in principle accept your session and you'd stream to it
 (you'd leak the audio + the transient session key, not take attacker data into a
-trust boundary, it's a *sender*). the untrusted-input parsers (bplist / TLV8 /
-RTSP / the encrypted event frames) ARE bounds-checked against OOB + alloc-DoS,
-and the AEAD usage is authenticate-before-use with per-channel keys + counters.
+trust boundary, it's a *sender*).
+`RaopSender::setStrictReceiverAuth(true)` (`airplay_send --strict`) makes both
+checks **fail closed**: a wrong or missing proof / signature aborts the session
+before any setup traffic. it is opt-in until it has been confirmed against real
+receivers; making it the default is on the roadmap.
 
-bottom line: **use it on a network you trust.** since m1 the checks can fail
-closed: `RaopSender::setStrictReceiverAuth(true)` (`airplay_send --strict`)
-aborts the session on a wrong or missing proof / signature. it is opt-in until
-it has been confirmed against real receivers; making it the default is on the
-roadmap. report anything via `SECURITY.md`.
+what is defended either way: the untrusted-input parsers (bplist / TLV8 / RTSP /
+the encrypted event frames) are bounds-checked against OOB + alloc-DoS, and the
+AEAD usage is authenticate-before-use with per-channel keys + counters.
+
+bottom line: **use it on a network you trust**, and turn strict mode on if you
+don't. report anything via `SECURITY.md`.
 
 ## license
 
