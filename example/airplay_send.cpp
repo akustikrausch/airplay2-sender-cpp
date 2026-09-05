@@ -16,6 +16,9 @@
 //   --ap1   airplay 1: plain rtsp, no pairing (shairport-sync, apple tv 3).
 //   --strict fail closed when the receiver's proof / signature is wrong.
 //
+// exit code: 0 after ctrl-c, 1 when the session failed or the receiver ended
+// it, 2 on a usage error.
+//
 // the audio goes through the same lock-free ring a real player feeds from
 // its audio thread: a producer thread keeps it topped up, the sender pulls
 // 352-frame packets out of it on the loop thread. no file = a 440 Hz tone.
@@ -195,7 +198,10 @@ int main(int argc, char** argv) {
         done = true;
     };
     events.closed = [&] {
+        // only fires when the session ended without us asking (our own stop()
+        // is silent), so it is a failure as far as the exit code is concerned
         if (!done) std::printf(">> session closed by the receiver\n");
+        exitCode = 1;
         done = true;
     };
     events.pinRequired = [&](const std::string& device) {

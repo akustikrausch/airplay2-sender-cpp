@@ -155,9 +155,11 @@ network at all.
 
 ## build + run
 
-you need cmake 3.16+ and a c++20 compiler: gcc 10+, clang 12+, apple clang 13+
-(xcode 13), msvc 2019 16.10+ / 2022. mbed tls is fetched at configure time
-(network needed once); ed25519 is vendored. nothing else.
+you need cmake 3.16+ and a c++20 compiler. the only c++20 *library* feature the
+code uses is `std::span`, so the floor is low: **gcc 10** and **clang 14** build
+the tree and pass the suite, and ci additionally runs current gcc, clang, apple
+clang and msvc 2022. mbed tls is fetched at configure time (network needed
+once); ed25519 is vendored. nothing else.
 
 ```
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -166,8 +168,18 @@ ctest --test-dir build --output-on-failure
 ```
 
 that builds `airplay_crypto`, `raop_sender` (core + host), the `airplay_send`
-demo and the two test binaries. ci runs exactly this on linux (gcc, clang,
-asan+ubsan), macos and windows (msvc).
+demo and the two test binaries.
+
+| cmake option | default | what it does |
+|---|---|---|
+| `AIRPLAY_BUILD_EXAMPLE` | ON | the `airplay_send` cli demo |
+| `AIRPLAY_BUILD_TESTS` | ON | the two test binaries, registered with ctest |
+| `AIRPLAY_BUILD_QT_HOST` | OFF | `RaopQtHost`, needs Qt6 Core + Network |
+| `AIRPLAY_SANITIZE` | OFF | address + undefined sanitizers (own code only) |
+
+to embed the library, link `raop_sender` (it pulls in `airplay_crypto`,
+mbedcrypto and ed25519); `-DAIRPLAY_BUILD_EXAMPLE=OFF -DAIRPLAY_BUILD_TESTS=OFF`
+keeps the build to just that.
 
 ### the demo
 

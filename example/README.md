@@ -14,7 +14,8 @@ stop. built by default (`-DAIRPLAY_BUILD_EXAMPLE=ON`) as `airplay_send`.
 - the wav must be 16-bit pcm, mono or stereo, any sample rate (the sender
   resamples to 44.1 kHz): `ffmpeg -i in.mp3 -ac 2 -ar 44100 -c:a pcm_s16le out.wav`.
 - `--strict`: fail closed on a bad receiver proof / signature.
-- exit code 0 after a clean stop, 1 when the session failed, 2 on a usage error.
+- exit code 0 after a clean stop (ctrl-c), 1 when the session failed or the
+  receiver ended it, 2 on a usage error.
 
 what it shows: `RaopLoop` + `RaopSender` + a producer thread feeding the ring,
 exactly the split a real player uses. read `airplay_send.cpp` as the
