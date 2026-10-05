@@ -23,6 +23,11 @@
 // its audio thread: a producer thread keeps it topped up, the sender pulls
 // 352-frame packets out of it on the loop thread. no file = a 440 Hz tone.
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 #include "raop_loop.h"
 #include "raop_sender.h"
 #include "ring_buffer.h"
@@ -42,6 +47,11 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 using namespace fxchain;
 
@@ -119,10 +129,13 @@ void makeTone(std::vector<int16_t>& out, uint32_t& rate) {
 
 void usage() {
     std::fprintf(stderr,
-        "usage: airplay_send <receiver-ip> [file.wav] [--atv | --mac | --ap1]\n"
-        "                    [--port N] [--name TEXT] [--volume 0..100]\n"
-        "                    [--creds FILE] [--strict] [--quiet]\n"
-        "  no file -> a 440 Hz test tone. default: --atv (apple tv, on-screen pin), port 7000.\n");
+        "usage: airplay_send <receiver-ip> [file.wav|--stdin] [--atv | --mac | --ap1]\n"
+        "                    [--port N] [--name TEXT] [--volume 0..100] [--gain 0..1]\n"
+        "                    [--control PORT] [--creds FILE] [--strict] [--quiet]\n"
+        "  no file -> a 440 Hz test tone. default: --atv (apple tv, on-screen pin), port 7000.\n"
+        "  --stdin: read raw s16le 44100 Hz stereo PCM from stdin (e.g. ffmpeg -f s16le -).\n"
+        "  --gain: local PCM attenuation applied before streaming (default 1.0).\n"
+        "  --control PORT: local UDP port; 'GAIN <0..1>' adjusts gain live.\n");
 }
 
 } // namespace
@@ -130,8 +143,9 @@ void usage() {
 int main(int argc, char** argv) {
     std::string host, wav, name = "airplay-send", credsPath;
     uint16_t port = 7000;
-    double volume = 50.0;
-    bool strict = false, quiet = false;
+    uint16_t controlPort = 0;
+    double volume = 50.0, gain = 1.0;
+    bool strict = false, quiet = false, stdinMode = false;
     auto auth = RaopDeviceInfo::Auth::HapPin;
     bool airplay2 = true;
 
@@ -145,9 +159,12 @@ int main(int argc, char** argv) {
         else if (a == "--mac" || a == "--homepod") { auth = RaopDeviceInfo::Auth::HapTransient; airplay2 = true; }
         else if (a == "--ap1")    { auth = RaopDeviceInfo::Auth::None;         airplay2 = false; }
         else if (a == "--port")   port = uint16_t(std::atoi(next("--port")));
+        else if (a == "--control") controlPort = uint16_t(std::atoi(next("--control")));
         else if (a == "--name")   name = next("--name");
         else if (a == "--volume") volume = std::atof(next("--volume"));
+        else if (a == "--gain")   gain = std::atof(next("--gain"));
         else if (a == "--creds")  credsPath = next("--creds");
+        else if (a == "--stdin")  stdinMode = true;
         else if (a == "--strict") strict = true;
         else if (a == "--quiet")  quiet = true;
         else if (a == "--help" || a == "-h") { usage(); return 0; }
@@ -161,7 +178,12 @@ int main(int argc, char** argv) {
 
     std::vector<int16_t> samples;
     uint32_t rate = 44100;
-    if (!wav.empty()) {
+    if (stdinMode) {
+#ifdef _WIN32
+        _setmode(_fileno(stdin), _O_BINARY);
+        _setmode(_fileno(stdout), _O_BINARY);
+#endif
+    } else if (!wav.empty()) {
         std::string err;
         if (!loadWav(wav, samples, rate, err)) {
             std::fprintf(stderr, "%s: %s\n", wav.c_str(), err.c_str());
@@ -170,9 +192,12 @@ int main(int argc, char** argv) {
     } else {
         makeTone(samples, rate);
     }
-    std::printf("audio: %zu frames @ %u Hz stereo (%.1f s)%s\n",
-                samples.size() / 2, rate, double(samples.size() / 2) / rate,
-                wav.empty() ? ", test tone" : "");
+    if (!stdinMode)
+        std::printf("audio: %zu frames @ %u Hz stereo (%.1f s)%s\n",
+                    samples.size() / 2, rate, double(samples.size() / 2) / rate,
+                    wav.empty() ? ", test tone" : "");
+    else
+        std::printf("audio: streaming s16le 44100 Hz stereo PCM from stdin\n");
 
     std::signal(SIGINT, onSignal);
 #ifdef SIGTERM
@@ -238,14 +263,45 @@ int main(int argc, char** argv) {
     sender.setAuth(auth, airplay2, host, readFile(credsPath), std::string());
 
     // producer: keep the ring topped up, looping the audio, like a player's
-    // audio callback would.
+    // audio callback would. in --stdin mode it reads raw s16le stereo PCM
+    // from stdin instead of looping an in-memory buffer. gain is applied here
+    // (C++ side, atomic) so live volume changes never touch the receiver.
+    std::atomic<double> ctrlGain{gain};
     std::thread producer([&] {
-        size_t pos = 0;
         std::vector<int16_t> chunk(4096);
         while (!done.load()) {
             if (ring.availableWrite() >= chunk.size()) {
-                for (auto& x : chunk) { x = samples[pos]; if (++pos >= samples.size()) pos = 0; }
-                ring.tryPush(std::span<const int16_t>(chunk.data(), chunk.size()));
+                size_t filled = 0;
+                if (stdinMode) {
+                    while (filled < chunk.size() && !done.load()) {
+                        const size_t want =
+                            (chunk.size() - filled) * sizeof(int16_t);
+                        const size_t got =
+                            std::fread(chunk.data() + filled, 1, want, stdin);
+                        if (got == 0) {   // EOF -> end the stream
+                            done = true;
+                            break;
+                        }
+                        filled += got / sizeof(int16_t);
+                    }
+                    if (filled > 0) {
+                        const double g = ctrlGain.load();
+                        if (g != 1.0) {
+                            for (size_t i = 0; i < filled; ++i)
+                                chunk[i] = static_cast<int16_t>(chunk[i] * g);
+                        }
+                        ring.tryPush(
+                            std::span<const int16_t>(chunk.data(), filled));
+                    }
+                } else {
+                    size_t pos = 0;
+                    for (auto& x : chunk) {
+                        x = samples[pos];
+                        if (++pos >= samples.size()) pos = 0;
+                    }
+                    ring.tryPush(std::span<const int16_t>(chunk.data(),
+                                                          chunk.size()));
+                }
             } else {
                 std::this_thread::sleep_for(std::chrono::milliseconds(2));
             }
@@ -258,11 +314,59 @@ int main(int argc, char** argv) {
               :                                             "airplay 1");
     sender.start(host, port, name);
 
+    // runtime gain control: a tiny udp listener on 127.0.0.1:controlPort
+    // accepts "GAIN <0..1>" and applies it in the producer thread (atomic,
+    // local-only, never touches the receiver's session).
+    std::thread ctrlThread;
+    if (controlPort) {
+        ctrlThread = std::thread([&] {
+#ifdef _WIN32
+            SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
+            if (s == INVALID_SOCKET) return;
+#else
+            int s = socket(AF_INET, SOCK_DGRAM, 0);
+            if (s == -1) return;
+#endif
+            sockaddr_in a{};
+            a.sin_family = AF_INET;
+            a.sin_port = htons(controlPort);
+            a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            if (bind(s, reinterpret_cast<sockaddr*>(&a), sizeof(a)) == 0) {
+                // non-blocking: EOF must not leave join() stuck in recvfrom
+#ifdef _WIN32
+                u_long nb = 1;
+                ioctlsocket(s, FIONBIO, &nb);
+#else
+                int fl = fcntl(s, F_GETFL, 0);
+                fcntl(s, F_SETFL, fl | O_NONBLOCK);
+#endif
+                char buf[64];
+                while (!done.load()) {
+                    const int n = static_cast<int>(
+                        recvfrom(s, buf, sizeof(buf) - 1, 0, nullptr, nullptr));
+                    if (n <= 0) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                        continue;
+                    }
+                    buf[n] = 0;
+                    if (strncmp(buf, "GAIN ", 5) == 0)
+                        ctrlGain.store(std::atof(buf + 5));
+                }
+            }
+#ifdef _WIN32
+            closesocket(s);
+#else
+            close(s);
+#endif
+        });
+    }
+
     while (!done.load() && !g_interrupted.load()) loop.pump(sender);
 
     if (g_interrupted.load()) std::printf("\n>> stopping\n");
     sender.stop();   // TEARDOWN, flushed before the socket closes
     done = true;
+    if (ctrlThread.joinable()) ctrlThread.join();
     producer.join();
     return exitCode;
 }
